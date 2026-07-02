@@ -1,0 +1,100 @@
+{
+  "account": {
+    "starting_balance": 10000.0
+  },
+  "risk": {
+    "risk_per_trade_pct": 1.0,
+    "daily_loss_limit_pct": 3.0,
+    "max_trades_per_session": 4,
+    "max_trades_per_day": 8,
+    "max_concurrent_positions": 2,
+    "max_notional_leverage": 20,
+    "consecutive_losses_to_bench": 4
+  },
+  "strategy": {
+    "opening_range_minutes": 15,
+    "target_r_multiple": 2.0,
+    "atr_period": 14,
+    "range_atr_min": 0.3,
+    "range_atr_max": 3.0,
+    "slippage_pct": 0.02,
+    "tv_confluence_enabled": true,
+    "entry_cutoff_minutes": 0
+  },
+  "agent": {
+    "manage_update_minutes": 10,
+    "feed_limit": 300,
+    "assessment_ema_period": 20
+  },
+  "tuning": {
+    "auto_budget": 15,
+    "min_trades_per_change": 20,
+    "min_days_between_changes": 5,
+    "min_bucket_trades": 10,
+    "whitelist": {
+      "strategy.range_atr_min": {"min": 0.3, "max": 0.8, "step": 0.05},
+      "strategy.range_atr_max": {"min": 1.5, "max": 3.0, "step": 0.25},
+      "strategy.entry_cutoff_minutes": {"min": 0, "max": 120, "step": 30},
+      "strategy.tv_confluence_enabled": {"bool": true}
+    }
+  },
+  "backtest_assets": {
+    "GOLD":   {"name": "Gold",        "sector": "Metals",  "yahoo": "GC=F"},
+    "SILVER": {"name": "Silver",      "sector": "Metals",  "yahoo": "SI=F"},
+    "COPPER": {"name": "Copper",      "sector": "Metals",  "yahoo": "HG=F"},
+    "OIL":    {"name": "Crude Oil",   "sector": "Energy",  "yahoo": "CL=F"},
+    "NQ":     {"name": "Nasdaq 100",  "sector": "Indices", "yahoo": "NQ=F"},
+    "ES":     {"name": "S&P 500",     "sector": "Indices", "yahoo": "ES=F"},
+    "YM":     {"name": "Dow Jones",   "sector": "Indices", "yahoo": "YM=F"},
+    "EURUSD": {"name": "EUR/USD",     "sector": "Forex",   "yahoo": "EURUSD=X"},
+    "USDJPY": {"name": "USD/JPY",     "sector": "Forex",   "yahoo": "USDJPY=X"},
+    "BTC":    {"name": "Bitcoin",     "sector": "Crypto",  "yahoo": "BTC-USD"}
+  },
+  "news": {
+    "blackout_minutes_before": 15,
+    "blackout_minutes_after": 15,
+    "flatten_minutes_before_top_tier": 5,
+    "top_tier_keywords": ["FOMC", "Federal Funds Rate", "Non-Farm", "Nonfarm", "CPI"],
+    "calendar_url": "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "rss_url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+  },
+  "sessions": {
+    "asia": {
+      "label": "Asian Session (first 4h)",
+      "open_tz": "Asia/Tokyo",
+      "open_time": "09:00",
+      "duration_minutes": 240,
+      "assets": ["GOLD"],
+      "holiday_currencies": ["JPY", "AUD"]
+    },
+    "newyork": {
+      "label": "New York Session",
+      "open_tz": "America/New_York",
+      "open_time": "09:30",
+      "duration_minutes": 390,
+      "assets": ["GOLD", "NQ", "ES"],
+      "holiday_currencies": ["USD"]
+    }
+  },
+  "assets": {
+    "GOLD": {
+      "name": "Gold (XAU/USD)",
+      "yahoo": "GC=F",
+      "tv_rating": {"symbol": "GOLD", "exchange": "TVC", "screener": "cfd"},
+      "tv_widget_symbol": "OANDA:XAUUSD"
+    },
+    "NQ": {
+      "name": "Nasdaq 100 (NQ)",
+      "yahoo": "NQ=F",
+      "tv_rating": {"symbol": "QQQ", "exchange": "NASDAQ", "screener": "america"},
+      "tv_widget_symbol": "NASDAQ:QQQ"
+    },
+    "ES": {
+      "name": "S&P 500 (ES)",
+      "yahoo": "ES=F",
+      "tv_rating": {"symbol": "SPY", "exchange": "AMEX", "screener": "america"},
+      "tv_widget_symbol": "AMEX:SPY"
+    }
+  },
+  "home_tz": "Australia/Sydney"
+}

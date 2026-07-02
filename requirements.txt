@@ -1,0 +1,10 @@
+pandas>=3.0
+yfinance>=1.4
+feedparser>=6.0
+tradingview-ta>=3.3
+python-dotenv>=1.2
+
+# Phase 2 (broker connectivity) — install when you're ready to connect a live account.
+# MetaTrader5 only installs on Windows with an MT5 terminal present.
+# MetaTrader5>=5.0.45 ; sys_platform == "win32"
+# ib_insync>=0.9.86
