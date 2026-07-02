@@ -22,7 +22,7 @@ import journal
 from agent import TradingAgent
 from broker import PaperBroker
 from news import NewsDesk, get_tv_rating, tv_allows
-from strategy import AssetStrategy
+from strategies import get_strategy
 
 BASE = Path(__file__).resolve().parent
 LOOP_SECONDS = 45
@@ -99,7 +99,8 @@ class Engine:
         self.close_utc = close_utc
         self.replay = replay
         self.assets = cfg["sessions"][session_name]["assets"]
-        self.strats = {a: AssetStrategy(a, cfg) for a in self.assets}
+        strat_cls = get_strategy(cfg["sessions"][session_name].get("strategy", "orb"))
+        self.strats = {a: strat_cls(a, cfg) for a in self.assets}
         self.atr = {}
         self.last_bar_done = {a: open_utc for a in self.assets}
         self.last_price = {}
