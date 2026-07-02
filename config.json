@@ -80,6 +80,7 @@
     "GOLD": {
       "name": "Gold (XAU/USD)",
       "yahoo": "GC=F",
+      "twelvedata": "XAU/USD",
       "tv_rating": {"symbol": "GOLD", "exchange": "TVC", "screener": "cfd"},
       "tv_widget_symbol": "OANDA:XAUUSD"
     },
