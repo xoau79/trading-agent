@@ -53,7 +53,13 @@ function Register-BotTask {
 }
 
 if (-not $Only -or $Only -eq "Asia") {
-    Register-BotTask -Name "TradingAgent-Asia" -ScriptArgs "bot.py`" --session asia" -StartTime "09:30"
+    # 10:30 AM Sydney is a fixed local wall-clock trigger, but the session itself is
+    # anchored to 10:00 JST (Asia/Tokyo, no DST) -- config.json's sessions.asia.open_time_note
+    # has the full rationale. That JST anchor lands at ~11:00 Sydney during AEST (30 min lead,
+    # matching bot.py's "~30 min before" comment) and ~12:00 Sydney during AEDT (1.5h lead,
+    # still safe -- bot.py just waits longer). Nothing to adjust twice a year: bot.py works out
+    # the exact open itself via zoneinfo every run.
+    Register-BotTask -Name "TradingAgent-Asia" -ScriptArgs "bot.py`" --session asia" -StartTime "10:30"
 }
 if (-not $Only -or $Only -eq "NY") {
     Register-BotTask -Name "TradingAgent-NY" -ScriptArgs "bot.py`" --session newyork" -StartTime "23:30"

@@ -28,13 +28,20 @@ the growing strategy library.
 
 | Session | When | Assets |
 |---|---|---|
-| Asian (first 4 h from Tokyo open) | ~10:00 – 14:00 | Gold |
+| Asian (2nd hour of Tokyo's market, 4 h) | 10:00 – 14:00 JST (~11:00–15:00 AEST / ~12:00–16:00 AEDT) | Gold |
 | New York (full session) | ~23:30 – 06:00 | Gold, Nasdaq (NQ), S&P 500 (ES) |
 
 Windows Task Scheduler starts the bot automatically every weekday
-(`TradingAgent-Asia` at 9:30 AM, `TradingAgent-NY` at 11:00 PM). The bot works out
+(`TradingAgent-Asia` at 10:30 AM, `TradingAgent-NY` at 11:00 PM). The bot works out
 the exact market open by itself, including daylight-saving changes, and exits when
 the session ends. **The PC just needs to stay on** (sleep is disabled while plugged in).
+The Asian session is anchored to Tokyo's own clock (`Asia/Tokyo`, `10:00` — the *second*
+hour of Japan's market, since the first hour's 1-minute bars are too thin for a reliable
+opening range). Japan doesn't observe daylight saving, so this anchor never moves; what
+moves is its Sydney-time *equivalent* (11:00 AEST in winter vs. 12:00 AEDT in summer) —
+`bot.py`'s `session_window()` works that conversion out fresh every run via `zoneinfo`, so
+the dashboard clock (always shown in `Australia/Sydney`) automatically tracks the correct
+wall-clock hour across both timezones' independent DST calendars with no manual tweaking.
 `ops/watchdog.py` runs on its own schedule to catch and recover a hung session automatically.
 
 **Bank holidays are skipped automatically.** Before each session the bot reads the
@@ -131,5 +138,5 @@ Everything universal lives in `config.json` — trade caps, session times, news 
 parameters live in each strategy's own folder. Change a number, save, and the next session uses it.
 To reset the account back to $10,000: delete `state.json`, `journal\trades.json` and `journal\lessons.json`.
 
-Scheduled tasks: `TradingAgent-Asia` (9:30 AM), `TradingAgent-NY` (11:00 PM),
+Scheduled tasks: `TradingAgent-Asia` (10:30 AM), `TradingAgent-NY` (11:00 PM),
 `TradingAgent-Dashboard` (at logon), `TradingAgent-Watchdog` (every 5 min).
