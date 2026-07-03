@@ -70,6 +70,7 @@
       "open_time": "09:00",
       "duration_minutes": 240,
       "assets": ["GOLD"],
+      "strategy": "orb",
       "holiday_currencies": ["JPY", "AUD"]
     },
     "newyork": {
@@ -78,6 +79,7 @@
       "open_time": "09:30",
       "duration_minutes": 390,
       "assets": ["GOLD", "NQ", "ES"],
+      "strategy": "orb",
       "holiday_currencies": ["USD"]
     }
   },
