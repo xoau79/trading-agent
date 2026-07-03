@@ -165,12 +165,14 @@ class TradingAgent:
     def on_filtered(self, asset, reason, now=None):
         self.say("filtered",
                  f"{asset}: standing aside for this whole session — {reason} "
-                 "Patience costs nothing; a forced trade in bad conditions does.", now=now)
+                 "Patience costs nothing; a forced trade in bad conditions does.",
+                 discord=True, now=now)
 
     def on_skipped(self, asset, direction, why, now=None):
         self.say("skipped",
                  f"A {direction} breakout fired on {asset}, but I'm not taking it: {why} "
-                 "The rule exists precisely for moments like this.", now=now)
+                 "The rule exists precisely for moments like this.",
+                 discord=True, now=now)
 
     def on_entry(self, pos, ratio, now=None):
         bias = self.assessments.get(pos["asset"])

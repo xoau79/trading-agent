@@ -16,13 +16,20 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import agent as agent_mod
-import broker as broker_mod
 import data_feed
 import journal
 from agent import TradingAgent
-from broker import PaperBroker
+from broker import paper as broker_mod
+from broker.paper import PaperBroker
 from news import NewsDesk, get_tv_rating, tv_allows
 from strategy import AssetStrategy
+
+# NOTE: the trading Engine below is still written directly against PaperBroker's specific
+# state-dict interface (self.broker.state[...], can_open(), etc.), not broker/base.py's
+# BrokerBase methods. broker.create_broker(cfg) exists and correctly builds an MT5Broker or
+# IBKRBroker from config.json's "broker.provider", but plugging one of those into this Engine
+# is separate follow-up work -- flipping the provider switch today would not (yet) change
+# what the live loop does. See docs/ARCHITECTURE.md.
 
 BASE = Path(__file__).resolve().parent
 LOOP_SECONDS = 45
@@ -294,6 +301,41 @@ def export(cfg, broker, status, snapshots, newsdesk, now_utc, replay=False, agen
         log.warning("dashboard export failed: %s", e)
 
 
+def recover_stale_positions(cfg, broker, agent=None):
+    """Crash recovery: the strategy rule is 'flat by session close, no exceptions,' so any
+    open position still sitting in state.json when a new bot.py process starts can only mean
+    the previous run died without reaching end_session() (a hang, a crash, a killed process —
+    see the 2026-07-02 postmortem in docs/ARCHITECTURE.md). Flatten immediately, before doing
+    anything else, using a fresh price.
+    """
+    positions = broker.state.get("open_positions") or {}
+    if not positions:
+        return
+    log.warning("recovering %d stale open position(s) from a previous run: %s",
+                len(positions), list(positions.keys()))
+    now = utcnow()
+    prices = {}
+    for asset in positions:
+        bars = data_feed.get_recent_bars(cfg["assets"][asset]["yahoo"], now_utc=now,
+                                         twelvedata_symbol=cfg["assets"][asset].get("twelvedata"))
+        if bars is not None and not bars.empty:
+            prices[asset] = float(bars["Close"].iloc[-1])
+        else:
+            log.error("could not price %s for crash recovery — will retry next start", asset)
+    closed = broker.flatten_all(prices, "crash_recovery", now)
+    for t in closed:
+        journal.record_trade(t, cfg)
+    still_open = broker.state.get("open_positions") or {}
+    if agent and closed:
+        names = ", ".join(f"{t['asset']} {t['pnl']:+.2f} USD" for t in closed)
+        note = "" if not still_open else (
+            f" ({len(still_open)} more couldn't be priced yet and remain open — "
+            "will retry on next start.)")
+        agent.say("halt", f"Startup crash-recovery: found {len(closed)} position(s) left open "
+                  f"by a run that didn't shut down cleanly ({names}). Flattened at current "
+                  f"market price before doing anything else.{note}", discord=True, now=now)
+
+
 def run_live(session_name):
     cfg = load_cfg()
     open_utc, close_utc = session_window(cfg, session_name)
@@ -312,6 +354,7 @@ def run_live(session_name):
         agent.cfg = cfg
         agent.tuning = cfg.get("tuning", {})
     broker = PaperBroker(cfg)
+    recover_stale_positions(cfg, broker, agent=agent)
     broker.start_session(session_name, day_key)
     engine = Engine(cfg, broker, newsdesk, session_name, open_utc, close_utc,
                     agent=agent)
@@ -350,7 +393,9 @@ def run_live(session_name):
             cutoff = utcnow() - timedelta(seconds=60)
             bars_by_asset, fresh = {}, False
             for asset in engine.assets:
-                bars = data_feed.get_recent_bars(cfg["assets"][asset]["yahoo"])
+                bars = data_feed.get_recent_bars(
+                    cfg["assets"][asset]["yahoo"], now_utc=utcnow(),
+                    twelvedata_symbol=cfg["assets"][asset].get("twelvedata"))
                 if bars is not None:
                     bars_by_asset[asset] = bars[bars.index <= cutoff]
                     if not data_feed.is_stale(bars, utcnow()):
@@ -371,6 +416,7 @@ def run_live(session_name):
             status = engine.step(utcnow(), bars_by_asset)
             export(cfg, broker, status, engine.snapshots(), newsdesk, utcnow(),
                    agent=agent)
+            journal.write_heartbeat(session_name)
             errors = 0
         except Exception:
             errors += 1

@@ -1,14 +1,5 @@
-"""Price data feed — wraps yfinance and normalizes everything to UTC.
-
-All bar DataFrames returned here have a tz-aware UTC DatetimeIndex and
-plain columns: Open, High, Low, Close, Volume.
-"""
-import logging
-
+"""Shared, provider-agnostic helpers used by every price-data source."""
 import pandas as pd
-import yfinance as yf
-
-log = logging.getLogger("data_feed")
 
 STALE_LIMIT_MIN = 10  # if the newest bar is older than this, the feed is considered stale
 
@@ -21,28 +12,6 @@ def _normalize(df):
     df = df.tz_convert("UTC") if df.index.tz is not None else df.tz_localize("UTC")
     df = df[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"])
     return df.sort_index()
-
-
-def get_recent_bars(ticker, period="5d", interval="1m"):
-    """Latest bars for live trading. Returns None on failure."""
-    try:
-        df = yf.download(ticker, period=period, interval=interval,
-                         progress=False, auto_adjust=True)
-        return _normalize(df)
-    except Exception as e:
-        log.warning("fetch failed for %s: %s", ticker, e)
-        return None
-
-
-def get_bars_between(ticker, start_utc, end_utc, interval="1m"):
-    """Historical bars for replay mode. Yahoo only keeps ~30 days of 1m data."""
-    try:
-        df = yf.download(ticker, start=start_utc, end=end_utc, interval=interval,
-                         progress=False, auto_adjust=True)
-        return _normalize(df)
-    except Exception as e:
-        log.warning("history fetch failed for %s: %s", ticker, e)
-        return None
 
 
 def is_stale(bars, now_utc):
