@@ -16,13 +16,20 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import agent as agent_mod
-import broker as broker_mod
 import data_feed
 import journal
 from agent import TradingAgent
-from broker import PaperBroker
+from broker import paper as broker_mod
+from broker.paper import PaperBroker
 from news import NewsDesk, get_tv_rating, tv_allows
 from strategy import AssetStrategy
+
+# NOTE: the trading Engine below is still written directly against PaperBroker's specific
+# state-dict interface (self.broker.state[...], can_open(), etc.), not broker/base.py's
+# BrokerBase methods. broker.create_broker(cfg) exists and correctly builds an MT5Broker or
+# IBKRBroker from config.json's "broker.provider", but plugging one of those into this Engine
+# is separate follow-up work -- flipping the provider switch today would not (yet) change
+# what the live loop does. See docs/ARCHITECTURE.md.
 
 BASE = Path(__file__).resolve().parent
 LOOP_SECONDS = 45

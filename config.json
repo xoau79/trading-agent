@@ -1,4 +1,9 @@
 {
+  "broker": {
+    "provider": "paper",
+    "provider_options": ["paper", "mt5", "ibkr"],
+    "provider_note": "paper is the only one exercised against live trading today. Switching to mt5/ibkr requires broker credentials in .env and per-asset symbol mappings below -- see broker/README.md before switching."
+  },
   "account": {
     "starting_balance": 10000.0
   },
@@ -81,18 +86,24 @@
       "name": "Gold (XAU/USD)",
       "yahoo": "GC=F",
       "twelvedata": "XAU/USD",
+      "mt5": null,
+      "mt5_note": "fill in once IC Markets is connected -- check Market Watch, likely 'XAUUSD' or similar",
       "tv_rating": {"symbol": "GOLD", "exchange": "TVC", "screener": "cfd"},
       "tv_widget_symbol": "OANDA:XAUUSD"
     },
     "NQ": {
       "name": "Nasdaq 100 (NQ)",
       "yahoo": "NQ=F",
+      "mt5": null,
+      "mt5_note": "fill in once IC Markets is connected -- likely a 'NAS100'-style index CFD, not a literal futures contract",
       "tv_rating": {"symbol": "QQQ", "exchange": "NASDAQ", "screener": "america"},
       "tv_widget_symbol": "NASDAQ:QQQ"
     },
     "ES": {
       "name": "S&P 500 (ES)",
       "yahoo": "ES=F",
+      "mt5": null,
+      "mt5_note": "fill in once IC Markets is connected -- likely a 'US500'-style index CFD, not a literal futures contract",
       "tv_rating": {"symbol": "SPY", "exchange": "AMEX", "screener": "america"},
       "tv_widget_symbol": "AMEX:SPY"
     }

@@ -21,11 +21,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import agent as agent_mod
-import broker as broker_mod
 import data_feed
 import journal
 from bot import Engine, day_key_for, load_cfg, session_window
-from broker import PaperBroker
+from broker import paper as broker_mod
+from broker.paper import PaperBroker
 from news import NewsDesk
 
 BASE = Path(__file__).resolve().parent

@@ -1,16 +1,23 @@
-"""Paper broker: simulated fills, position sizing, balances, and hard risk limits.
+"""Paper broker: simulated fills, position sizing, balances, and hard risk limits. The
+default broker (config.json's "broker.provider" == "paper") and the only one exercised
+against live trading today.
 
-All persistent account state lives in state.json (written atomically so the
+All persistent account state lives in state.json (repo root, written atomically so the
 dashboard never reads a half-written file).
+
+Universal risk rules live here (can_open, check_daily_stop), not in any strategy -- they
+apply no matter which strategy is running. See strategies/README.md.
 """
 import json
 import logging
 import os
 from pathlib import Path
 
+from .base import BrokerBase
+
 log = logging.getLogger("broker")
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parent.parent
 STATE_FILE = BASE / "state.json"
 
 
@@ -22,7 +29,7 @@ def _atomic_write(path, text):
     os.replace(tmp, path)
 
 
-class PaperBroker:
+class PaperBroker(BrokerBase):
     def __init__(self, cfg):
         self.cfg = cfg
         self.risk = cfg["risk"]
@@ -70,7 +77,7 @@ class PaperBroker:
         until = self.state["benched_until"].get(asset)
         return until is not None and self.state["day_key"] <= until
 
-    # ----- hard limits ("no heavy losses") ------------------------------------
+    # ----- hard limits ("no heavy losses") -- universal, apply to every strategy ---
     def can_open(self, asset):
         s = self.state
         if s["halted_reason"]:
@@ -100,7 +107,10 @@ class PaperBroker:
 
     # ----- order lifecycle -----------------------------------------------------
     def size_position(self, entry, stop):
-        """Units so that (entry - stop) * units = 1% of balance, leverage-capped."""
+        """Units so that (entry - stop) * units = risk_per_trade_pct of balance,
+        leverage-capped. risk_per_trade_pct is universal today (config.json's "risk"); once
+        strategies/ carries its own risk_per_trade_pct per strategy (see
+        strategies/README.md), this reads from the active strategy instead."""
         risk_usd = self.state["balance"] * self.risk["risk_per_trade_pct"] / 100.0
         stop_dist = abs(entry - stop)
         if stop_dist <= 0:
@@ -171,6 +181,10 @@ class PaperBroker:
         return None, None
 
     def close_position(self, asset, exit_price, reason, now_utc):
+        """Note: parameter order (exit_price before reason) predates broker/base.py's
+        interface and is kept as-is -- every call site in bot.py's Engine already uses this
+        order positionally; reordering it for interface purity isn't worth the regression
+        risk to the live trading loop."""
         s = self.state
         pos = s["open_positions"].pop(asset, None)
         if pos is None:
@@ -217,3 +231,35 @@ class PaperBroker:
                 if t:
                     closed.append(t)
         return closed
+
+    # ----- BrokerBase compliance (broker/base.py) -------------------------------
+    # Paper trading has no live clock/feed of its own -- these delegate to data_feed,
+    # exactly like the engine already does directly. Kept thin on purpose.
+    def connect(self):
+        return True  # always "connected" -- there's nothing to dial into
+
+    def get_bars(self, asset, interval="1m", lookback_minutes=300):
+        import data_feed
+        return data_feed.get_recent_bars(
+            self.cfg["assets"][asset]["yahoo"],
+            twelvedata_symbol=self.cfg["assets"][asset].get("twelvedata"))
+
+    def get_price(self, asset):
+        bars = self.get_bars(asset)
+        return float(bars["Close"].iloc[-1]) if bars is not None and not bars.empty else None
+
+    def place_order(self, asset, direction, units, stop, target):
+        """Alias for open_position() with the interface's standardized name/shape. Engine
+        calls open_position() directly (it also needs to pass through `signal`/`context`
+        dicts this simplified interface doesn't carry) -- this exists for anything using the
+        broker-agnostic surface instead."""
+        import datetime
+        signal = {"direction": direction, "entry": self.get_price(asset), "stop": stop,
+                  "target": target}
+        return self.open_position(asset, signal, datetime.datetime.now(datetime.timezone.utc), {})
+
+    def get_positions(self):
+        return self.state["open_positions"]
+
+    def get_account_info(self):
+        return {"balance": self.state["balance"], "currency": "USD"}
