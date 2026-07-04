@@ -5,24 +5,29 @@
     one is reimaged) straight from the repo.
 
 .DESCRIPTION
-    Registers/updates three tasks, all running as the current user, all pointed at pythonw.exe
+    Registers/updates four tasks, all running as the current user, all pointed at pythonw.exe
     (no console window) inside this repo's working directory:
       - TradingAgent-Asia       weekdays, Asian session
       - TradingAgent-NY         weekdays, New York session
       - TradingAgent-Dashboard  at logon, keeps the dashboard server running
+      - TradingAgent-RepoSync   every 15 min, keeps this machine's main in sync with
+                                origin/main and restarts the dashboard when it updates
+                                (see ops/sync_repo.ps1) -- this is what stops localhost
+                                from silently serving stale code after a PR merges.
 
     Safe to re-run: every task is registered with -Force, so re-running this script just
     re-applies the same definition rather than erroring on "already exists".
 
 .PARAMETER Only
-    Optional: register a single task by short name (Asia, NY, Dashboard) instead of all three.
+    Optional: register a single task by short name (Asia, NY, Dashboard, RepoSync) instead
+    of all four.
 
 .EXAMPLE
-    # Add just the dashboard task to an existing setup, without touching Asia/NY:
+    # Add just the dashboard task to an existing setup, without touching the others:
     .\ops\register_tasks.ps1 -Only Dashboard
 #>
 param(
-    [ValidateSet("Asia", "NY", "Dashboard")]
+    [ValidateSet("Asia", "NY", "Dashboard", "RepoSync")]
     [string]$Only
 )
 
@@ -70,4 +75,16 @@ if (-not $Only -or $Only -eq "Dashboard") {
     Register-ScheduledTask -TaskName "TradingAgent-Dashboard" -Action $action -Trigger $trigger `
         -Settings $settings -Force | Out-Null
     Write-Host "Registered TradingAgent-Dashboard"
+}
+if (-not $Only -or $Only -eq "RepoSync") {
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$RepoRoot\ops\sync_repo.ps1`"" `
+        -WorkingDirectory $RepoRoot
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+        -MultipleInstances IgnoreNew -StartWhenAvailable
+    Register-ScheduledTask -TaskName "TradingAgent-RepoSync" -Action $action -Trigger $trigger `
+        -Settings $settings -Force | Out-Null
+    Write-Host "Registered TradingAgent-RepoSync"
 }
