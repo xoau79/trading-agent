@@ -5,27 +5,24 @@
     one is reimaged) straight from the repo.
 
 .DESCRIPTION
-    Registers/updates four tasks, all running as the current user, all pointed at pythonw.exe
+    Registers/updates three tasks, all running as the current user, all pointed at pythonw.exe
     (no console window) inside this repo's working directory:
       - TradingAgent-Asia       weekdays, Asian session
       - TradingAgent-NY         weekdays, New York session
       - TradingAgent-Dashboard  at logon, keeps the dashboard server running
-      - TradingAgent-Watchdog   every 5 minutes, dead-man's-switch (see ops/watchdog.py)
 
     Safe to re-run: every task is registered with -Force, so re-running this script just
     re-applies the same definition rather than erroring on "already exists".
 
 .PARAMETER Only
-    Optional: register a single task by short name (Asia, NY, Dashboard, Watchdog) instead of
-    all four. Useful for adding Watchdog to a machine that already has the other three set up
-    by hand, without touching (and risking) the ones already running correctly.
+    Optional: register a single task by short name (Asia, NY, Dashboard) instead of all three.
 
 .EXAMPLE
-    # Add just the new watchdog task to an existing setup, without touching Asia/NY/Dashboard:
-    .\ops\register_tasks.ps1 -Only Watchdog
+    # Add just the dashboard task to an existing setup, without touching Asia/NY:
+    .\ops\register_tasks.ps1 -Only Dashboard
 #>
 param(
-    [ValidateSet("Asia", "NY", "Dashboard", "Watchdog")]
+    [ValidateSet("Asia", "NY", "Dashboard")]
     [string]$Only
 )
 
@@ -73,15 +70,4 @@ if (-not $Only -or $Only -eq "Dashboard") {
     Register-ScheduledTask -TaskName "TradingAgent-Dashboard" -Action $action -Trigger $trigger `
         -Settings $settings -Force | Out-Null
     Write-Host "Registered TradingAgent-Dashboard"
-}
-if (-not $Only -or $Only -eq "Watchdog") {
-    $action = New-ScheduledTaskAction -Execute $PythonW `
-        -Argument "`"$RepoRoot\ops\watchdog.py`"" -WorkingDirectory $RepoRoot
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-        -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 4) `
-        -MultipleInstances IgnoreNew
-    Register-ScheduledTask -TaskName "TradingAgent-Watchdog" -Action $action -Trigger $trigger `
-        -Settings $settings -Force | Out-Null
-    Write-Host "Registered TradingAgent-Watchdog (every 5 min)"
 }

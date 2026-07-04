@@ -434,7 +434,6 @@ def run_live(session_name):
             status = engine.step(utcnow(), bars_by_asset)
             export(cfg, broker, status, engine.snapshots(), newsdesk, utcnow(),
                    agent=agent, candles=engine.candles())
-            journal.write_heartbeat(session_name)
             errors = 0
         except Exception:
             errors += 1
