@@ -71,6 +71,7 @@
       "open_time_note": "10:00 JST is deliberately the SECOND hour of Tokyo's market (which opens 09:00 JST), not the open itself -- the first hour's 1-min bars are too thin/erratic for a reliable opening-range high/low. Japan does not observe daylight saving, so this is a fixed anchor; Sydney's own DST means the equivalent local time is ~11:00 during AEST (Apr-Oct) and ~12:00 during AEDT (Oct-Apr) -- bot.py's session_window() computes this exactly via zoneinfo every run, no manual adjustment needed twice a year.",
       "duration_minutes": 240,
       "assets": ["GOLD"],
+      "strategy": "orb",
       "holiday_currencies": ["JPY", "AUD"]
     },
     "newyork": {
@@ -79,6 +80,7 @@
       "open_time": "09:30",
       "duration_minutes": 390,
       "assets": ["GOLD", "NQ", "ES"],
+      "strategy": "orb",
       "holiday_currencies": ["USD"]
     }
   },
