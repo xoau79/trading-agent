@@ -5,80 +5,117 @@ the dashboard stays visually consistent as features are added over time — **ev
 radius, or component pattern must be added here in the same PR that introduces it.** Don't invent one-off
 styles inline; use what's documented, or extend this doc first.
 
-Everything below is extracted directly from the current, live dashboard CSS — nothing here is aspirational.
+Everything below is extracted directly from the current, live dashboard CSS (`dashboard/css/app.css`) —
+nothing here is aspirational.
+
+## Architecture
+
+The dashboard is a static app served by `dashboard_server.py` — no build step, no framework:
+
+| File | Role |
+|---|---|
+| `dashboard/dashboard.html` | Shell: topbar, banner slot, grid of section containers |
+| `dashboard/css/fonts.css` | Self-hosted `@font-face` (Space Grotesk, Inter, JetBrains Mono — `dashboard/fonts/*.woff2`) |
+| `dashboard/css/app.css` | Every token and component below |
+| `dashboard/js/util.js` | `window.U` — formatting, timestamp parsing, session windows, derived metrics, animated counters |
+| `dashboard/js/charts.js` | `window.Charts` — canvas chart engine: `CandleChart` (zoom/pan/crosshair/trade markers), `LineChart`, `BarChart`, `BandChart`, `sparkline`, shared tooltip |
+| `dashboard/js/components.js` | `window.C` — one render function per section; skeletons built once, updated in place so chart state survives the 60 s refresh |
+| `dashboard/js/app.js` | Boot, `data.js` polling (script injection, works from file://), `/api/suggestions` polling, clock |
+| `dashboard/js/demo.js` | Deterministic sample data, loaded only with `?demo=1` — preview the full UI without a running bot |
+
+All user-facing dynamic strings go through `U.esc()` before touching `innerHTML`, or through
+`textContent` (tooltips). Keep it that way.
 
 ## Color tokens
 
-Defined once as CSS custom properties on `:root`, used everywhere else via `var(--name)`. Never hardcode a
-hex value in a rule when a token already covers it.
+Defined once as CSS custom properties on `:root`, used everywhere via `var(--name)`. Never hardcode a hex
+value in a rule when a token covers it. The five data colors were validated as a set (colorblind ΔE ≥ 12
+between adjacent slots, ≥ 3:1 contrast on `--surface`) — if you change one, re-validate all five.
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#0d1117` | Page background |
-| `--card` | `#161b22` | Card/panel background |
-| `--card2` | `#1c2230` | Nested surface (KPI tiles, table hover rows, dropdowns) |
-| `--border` | `#2d333b` | All hairline borders |
-| `--text` | `#e6edf3` | Primary text |
-| `--dim` | `#8b949e` | Secondary/muted text |
-| `--gold` | `#e3b341` | Primary accent — Gold trades, "run backtest" CTA, progress bars |
-| `--green` | `#3fb950` | Positive/live/win state |
-| `--red` | `#f85149` | Negative/halt/loss state |
-| `--blue` | `#58a6ff` | Informational/replay state, links, suggestion cards |
-| `--amber` | `#d29922` | Warning/asleep state |
+| `--bg` | `#07090F` | Page plane (with faint fixed grid + one radial glow via `.backdrop`) |
+| `--surface` | `#0E1219` | Card/panel background; also the chart surface |
+| `--surface-2` | `#131A26` | Nested surface (metric groups, position rows, feed hover, inputs) |
+| `--surface-3` | `#182130` | Third step: active tabs, meters' tracks, hover states |
+| `--line` | `rgba(151,168,199,.10)` | Default hairline border / gridline color family |
+| `--line-2` | `rgba(151,168,199,.18)` | Stronger hairline (card hover, control borders) |
+| `--ink` | `#EAF0F9` | Primary text |
+| `--ink-2` | `#9DA9BC` | Secondary text |
+| `--ink-3` | `#5E6B80` | Muted text, axis labels, eyebrows |
+| `--accent` | `#5585E3` | The one brand accent: equity line, radar, links, selected chips, primary buttons |
+| `--gold` | `#BC8A32` | Second data series / backtest progress / Monte-Carlo median |
+| `--violet` | `#8377E0` | Third data series (rarely needed) |
+| `--up` | `#27A874` | Profit **marks** (candles, bars, lines) |
+| `--down` | `#DE4E56` | Loss **marks** |
+| `--up-ink` / `--down-ink` | `#3DD68C` / `#F2646C` | Brighter steps reserved for P&L **text** at small sizes |
+| `--warn-ink` | `#E5B567` | Warning/asleep text |
 
-Status colors are never used decoratively — `green` always means "good/live," `red` always means
-"stopped/loss," `amber` always means "waiting/degraded." Don't repurpose them for anything else (e.g. don't
-use `--red` for a delete button unrelated to trading state).
+Rules: green always means profit/live, red always means loss/halted, amber always means waiting/degraded —
+never decorative. Text never wears a mark color: numbers use `--up-ink`/`--down-ink`, marks use
+`--up`/`--down`.
 
 ## Typography
 
-- System font stack (no custom webfont — keeps the dashboard dependency-free and fast on localhost).
-- Body text ~13–14px; KPI/stat numbers larger and bold; `.dim`/`--dim` for secondary labels.
-- No more than two weights in play: regular body text, bold for numbers/headers/badges.
+Three self-hosted faces, each with one job (fallbacks: system-ui / ui-monospace):
 
-## Shape & spacing
+- **Space Grotesk** (`--font-disp`) — display numerals only: hero capital, stat values, clock, asset
+  symbols. Proportional figures at display sizes.
+- **Inter** (`--font-ui`) — everything else. Card titles are 10–11px uppercase with `0.12–0.16em`
+  letter-spacing.
+- **JetBrains Mono** (`--font-mono`) — timestamps, prices, table numerics, axis ticks, deltas — always with
+  `font-variant-numeric: tabular-nums` so columns align.
 
-- **Border radius scale** — pick from these, don't introduce a fourth value:
-  - `8px` — buttons, inputs, small controls
-  - `10px` — cards' inner elements (KPI tiles, stage cards, banners, chips-adjacent blocks)
-  - `12px` — top-level `.card` panels
-  - `999px` — fully-rounded pill shapes (badges, chips, progress/meter bars)
-- **Layout**: single-column `.wrap` with `max-width: 1280px`, centered, `gap: 18px` between cards.
-- **Grids**: `.cols2` (1fr 1fr), `.cols3` (repeat(3, 1fr)), `.colsHC` (2fr 1fr for hero+companion
-  layouts), `.kpis` (`repeat(auto-fit, minmax(140px, 1fr))`). All collapse to a single column below the
-  **950px** breakpoint — this is the one responsive breakpoint in use; don't add another without updating
-  this doc.
-- Card padding: `18px`. Inner tile padding: `12px 14px`.
+## Shape, spacing, motion
+
+- **Radius scale** (don't add a fifth value): `7px` small controls · `10px` inner tiles/banners ·
+  `16px` top-level `.card` · `999px` pills.
+- **Grid**: 12-column `main.grid`, `gap: 18px`, page padding `28px`, `max-width: 2100px`, designed for
+  1920×1200. Span classes: `.span-4/6/8/12`; composite columns `.col-left`, `.col-mid`, `.market-card`,
+  `.agent-card`. Breakpoints: **1500px** (market chart drops below hero) and **1180px** (single column).
+- **Card**: `--surface` + 1px `--line`, faint top-edge highlight gradient, `20px` padding. Hover only
+  brightens the border — no lift/shadow inflation.
+- **Motion**: one curve `--ease: cubic-bezier(.22,.61,.25,1)`; durations `150ms` (hover) / `280ms` /
+  `~500ms` (reveals). Reveal-up on load, slide-in for new feed items, 650ms eased counter on the hero
+  figure, 900ms streak-arc sweep. Everything collapses under `prefers-reduced-motion`.
 
 ## Components (reuse these, don't reinvent)
 
-- **`.card`** — the base panel: `var(--card)` background, `1px solid var(--border)`, `12px` radius, `18px`
-  padding. Every top-level section on the dashboard is a `.card`.
-- **`.badge`** — small pill status label (`999px` radius). Variants: `.live` (green), `.halt` (red),
-  `.idle` (dim/card2), `.asleep` (amber), `.holiday` (dim/card2).
-- **`.banner`** — full-width callout, same variant naming as badges (`.halt`, `.replay`, `.asleep`,
-  `.holiday`), `10px` radius, bold text, used for session-level state that deserves more attention than a
-  badge.
-- **`.kpi`** — a stat tile inside `.kpis`: `var(--card2)` background, `10px` radius.
-- **`.stagecard`** — one card per traded asset showing its current strategy stage (building range /
-  hunting / filtered / managing position); same visual weight as `.kpi`.
-- **`.chip`** — selectable pill control (asset picker in Backtest Lab): `999px` radius, `.sel` variant uses
-  `--blue` background/border when selected.
-- **`.sugg`** — agent suggestion card: `var(--card2)` background, `1px solid var(--blue)` border (blue =
-  informational, awaiting a decision), Approve (`.approve`, green) / Reject (`.reject`, red-outlined) button
-  pair.
-- **`.meter` / `.prog`** — thin rounded progress bars (`8px`/`10px` tall, `999px` radius track) with an
-  inner fill div; `.meter` fill is blue (generic progress), `.prog` fill is gold (backtest progress).
-- **`.feeditem`** — agent narration entries in the feed list; `k-entry` gets a green left border, `k-exit`
-  gets a gold left border — every other kind is unaccented.
-- Buttons: `border: none`, `8px` radius, `8px 16px` padding, font inherited. Primary actions (`.runbt`,
-  `.wakebt`) use `--gold`/`--amber` fills with dark text for contrast; don't use light text on these two.
+- **`.pill`** — status pill (topbar session, hero state). Variants: `-live` (green, pulsing dot),
+  `-halt`, `-warn`, `-idle`, `-accent`.
+- **`.banner`** — full-width callout under the topbar: `-halt`, `-asleep`, `-replay`, `-holiday`.
+- **Hero** — `.hero-figure` (62px Space Grotesk, small `$`/cents), `.delta-chip` row, sparkline,
+  status strip; **`.streak`** ring: SVG arc (fraction = |streak|/10), `up/down/flat` color states,
+  breathing halo.
+- **`.metric-group`** — the metrics panel's four sub-cards (Profit & loss / Edge / Averages / Risk), each a
+  2×2 grid of `.m-cell` (label / display value / mono sub-line). All stats live here — don't scatter stats
+  into other cards.
+- **`.chart-shell`** — positioned container a chart engine instance owns; fixed heights via
+  `.market-canvas`, `.equity-canvas`, `.mini-canvas`, `.bt-canvas(-sm)`. Never put a fixed height on the
+  canvas itself. The shared tooltip `#chartTip` is a single fixed-position element.
+- **Chart language** (enforced by `charts.js`, don't fork it): hairline solid gridlines, right-hand price
+  axis, Sydney-time x labels, 2px lines, ≤ 24px bars with rounded data-ends (square at baseline), 2px
+  surface rings on markers, crosshair + tooltip on every plot, empty-state message when there's no data.
+- **`.stage-chip`** — per-asset strategy stage + bias, in the market card footer.
+- **`.radar`** — the "agent is working" sweep (conic gradient + rings + blips). Pauses via
+  `animationPlayState` when the bot isn't live. Keep it subtle; never add a spinner anywhere.
+- **`.feed-item`** — timestamp (mono) + category tag + message; severity via `sev-success/-danger/-warn/-accent`
+  left border + tag tint. The feed renders at most 18 items (`FEED_MAX` in components.js).
+- **`.sugg`** — agent suggestion card (blue border = awaiting decision) with `.btn-approve` /
+  `.btn-reject` pair.
+- **`.btn`** — base button; variants `-primary` (accent gradient), `-approve`, `-reject`, `-wake`.
+  Hover lifts 1px; that's the only translate in the system.
+- **`.chip`** — selectable pill (Backtest Lab assets); `.sel` = accent tint.
+- **`.meter` / `.prog`** — 5–6px rounded progress tracks; meter fill accent (refinement budget), prog fill
+  gold (backtest).
+- **Tables** — 10px uppercase `th`, hairline row borders, `.mono` numerics right-aligned, `.r-chip` for
+  R-multiples, `.side-tag` for LONG/SHORT, expandable `.detail-row` for trade reflections.
 
 ## Adding something new
 
-Before writing new dashboard CSS:
-1. Check if an existing token/component above already covers it — reuse it.
-2. If genuinely new (a new state, a new data visualization type), add the token/component to this table
-   *and* implement it, in the same PR.
-3. Keep the dark theme + single accent-per-state model — don't introduce a second "brand color" or a light
-   mode variant without discussing it first; this is a deliberate constraint, not an oversight.
+1. Check if an existing token/component covers it — reuse it.
+2. If genuinely new, add it to this doc *and* implement it in the same PR.
+3. New chart types go into `charts.js` sharing the same axis/tooltip/mark helpers — never a one-off canvas
+   or an external chart library.
+4. Keep the dark theme + single accent model. No second brand color, no light mode, without discussing
+   first — deliberate constraint, not an oversight.

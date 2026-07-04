@@ -115,6 +115,23 @@ class Engine:
         self._halt_announced = False
         self._bench_announced = set()
         self._skip_noted = set()
+        self._last_bars = {}
+
+    def candles(self, limit=240):
+        """Latest per-asset 1-min OHLC as JSON-safe lists for the dashboard chart.
+
+        [{t: epoch_sec, o, h, l, c}, ...] — capped so data.js stays small."""
+        out = {}
+        for asset, bars in self._last_bars.items():
+            if bars is None or bars.empty:
+                continue
+            tail = bars.tail(limit)
+            out[asset] = [
+                {"t": int(ts.timestamp()),
+                 "o": round(float(b["Open"]), 4), "h": round(float(b["High"]), 4),
+                 "l": round(float(b["Low"]), 4), "c": round(float(b["Close"]), 4)}
+                for ts, b in tail.iterrows()]
+        return out
 
     def snapshots(self):
         snaps = {a: s.snapshot() for a, s in self.strats.items()}
@@ -126,6 +143,7 @@ class Engine:
     def step(self, now_utc, bars_by_asset):
         flatten_event = self.news.must_flatten(now_utc) if self.news else None
         blackout = self.news.in_blackout(now_utc) if self.news else None
+        self._last_bars = bars_by_asset
 
         for asset in self.assets:
             bars = bars_by_asset.get(asset)
@@ -291,12 +309,12 @@ class Engine:
 
 # ---------------------------------------------------------------------------
 def export(cfg, broker, status, snapshots, newsdesk, now_utc, replay=False, agent=None,
-           holiday_until=None):
+           holiday_until=None, candles=None):
     tag = "REPLAY — " if replay else ""
     try:
         journal.export_dashboard(cfg, broker.state, tag + status, snapshots,
                                  newsdesk, now_utc, agent=agent,
-                                 holiday_until=holiday_until)
+                                 holiday_until=holiday_until, candles=candles)
     except Exception as e:
         log.warning("dashboard export failed: %s", e)
 
@@ -415,7 +433,7 @@ def run_live(session_name):
                 stale_strikes = 0
             status = engine.step(utcnow(), bars_by_asset)
             export(cfg, broker, status, engine.snapshots(), newsdesk, utcnow(),
-                   agent=agent)
+                   agent=agent, candles=engine.candles())
             journal.write_heartbeat(session_name)
             errors = 0
         except Exception:
@@ -428,7 +446,8 @@ def run_live(session_name):
                           "I flattened everything and shut the session down — capital "
                           "first, pride second.", discord=True)
                 export(cfg, broker, "EMERGENCY STOP — repeated errors, session aborted",
-                       engine.snapshots(), newsdesk, utcnow(), agent=agent)
+                       engine.snapshots(), newsdesk, utcnow(), agent=agent,
+                       candles=engine.candles())
                 return
         elapsed = (utcnow() - loop_start).total_seconds()
         time.sleep(max(1, LOOP_SECONDS - elapsed))
@@ -438,7 +457,8 @@ def run_live(session_name):
                          engine.session_trades, broker.state["balance"])
     agent.review_and_refine(broker.state["day_key"])
     export(cfg, broker, f"{session_name} session complete — flat, see journal",
-           engine.snapshots(), newsdesk, utcnow(), agent=agent)
+           engine.snapshots(), newsdesk, utcnow(), agent=agent,
+           candles=engine.candles())
     log.info("=== session complete: balance %.2f ===", broker.state["balance"])
 
 
@@ -497,7 +517,8 @@ def run_replay(session_name, date_str):
     agent.on_session_end(cfg["sessions"][session_name]["label"],
                          engine.session_trades, broker.state["balance"], now=close_utc)
     export(cfg, broker, f"replay of {date_str} {session_name} complete",
-           engine.snapshots(), newsdesk, close_utc, replay=True, agent=agent)
+           engine.snapshots(), newsdesk, close_utc, replay=True, agent=agent,
+           candles=engine.candles())
 
     print(f"\nReplay {date_str} {session_name}: {len(engine.session_trades)} trades, "
           f"P&L {sum(t['pnl'] for t in engine.session_trades):+.2f} USD, "

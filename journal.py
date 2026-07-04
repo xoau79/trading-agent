@@ -267,7 +267,7 @@ def _derive_bot_state(bot_status):
 
 
 def export_dashboard(cfg, broker_state, bot_status, engine_snapshots, newsdesk, now_utc,
-                     agent=None, holiday_until=None):
+                     agent=None, holiday_until=None, candles=None):
     trades = _load(TRADES_FILE, [])
     lessons = _load(LESSONS_JSON, [])
     starting = cfg["account"]["starting_balance"]
@@ -300,6 +300,8 @@ def export_dashboard(cfg, broker_state, bot_status, engine_snapshots, newsdesk, 
         "benched": broker_state.get("benched_until", {}),
         "open_positions": broker_state.get("open_positions", {}),
         "assets_stage": engine_snapshots,
+        # per-asset 1-min OHLC [{t,o,h,l,c}] for the dashboard's own candle chart
+        "candles": candles or {},
         "equity_curve": broker_state["equity_curve"],
         "stats": stats,
         "trades": trades,

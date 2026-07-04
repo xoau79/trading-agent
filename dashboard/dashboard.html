@@ -2,761 +2,82 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Trading Agent — Dashboard</title>
-<style>
-  :root {
-    --bg: #0d1117; --card: #161b22; --card2: #1c2230; --border: #2d333b;
-    --text: #e6edf3; --dim: #8b949e; --gold: #e3b341; --green: #3fb950;
-    --red: #f85149; --blue: #58a6ff; --amber: #d29922;
-  }
-  * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text);
-         font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px; }
-  h1 { font-size: 22px; } h2 { font-size: 15px; color: var(--dim);
-       text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
-  .wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
-  .card { background: var(--card); border: 1px solid var(--border);
-          border-radius: 12px; padding: 18px; }
-  .row { display: grid; gap: 18px; }
-  .header { display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
-            justify-content: space-between; }
-  .balance { font-size: 36px; font-weight: 700; }
-  .pos { color: var(--green); } .neg { color: var(--red); } .dim { color: var(--dim); }
-  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px;
-           font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
-  .badge.live { background: #1a2f1a; color: var(--green); border-color: var(--green); }
-  .badge.halt { background: #2f1414; color: var(--red); border-color: var(--red); }
-  .badge.idle { background: var(--card2); color: var(--dim); }
-  .badge.asleep { background: #2a2410; color: var(--amber); border-color: var(--amber); }
-  .badge.holiday { background: var(--card2); color: var(--dim); }
-  .kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-  .kpi { background: var(--card2); border-radius: 10px; padding: 12px 14px; }
-  .kpi .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
-  .kpi .l { font-size: 11px; color: var(--dim); text-transform: uppercase;
-            letter-spacing: .06em; }
-  .cols2 { grid-template-columns: 1fr 1fr; } .cols3 { grid-template-columns: repeat(3, 1fr); }
-  .colsHC { grid-template-columns: 2fr 1fr; }
-  @media (max-width: 950px) { .cols2, .cols3, .colsHC { grid-template-columns: 1fr; } }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; color: var(--dim); font-weight: 600; padding: 6px 8px;
-       border-bottom: 1px solid var(--border); font-size: 11px;
-       text-transform: uppercase; letter-spacing: .05em; }
-  td { padding: 7px 8px; border-bottom: 1px solid #21262d; }
-  tr.trade { cursor: pointer; } tr.trade:hover { background: var(--card2); }
-  tr.detail td { background: var(--card2); font-size: 12.5px; color: var(--dim);
-                 padding: 12px 16px; }
-  tr.detail b { color: var(--text); }
-  .stagecard { background: var(--card2); border-radius: 10px; padding: 12px 14px; }
-  .stagecard .a { font-weight: 700; color: var(--gold); }
-  .bias { float: right; font-size: 12px; font-weight: 600; }
-  ul { padding-left: 18px; } li { margin: 4px 0; }
-  .event { display: flex; justify-content: space-between; gap: 10px;
-           padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
-  .impact-High { color: var(--red); font-weight: 600; }
-  .impact-Medium { color: var(--amber); }
-  .impact-Holiday { color: var(--dim); }
-  .lesson { padding: 7px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
-  .lesson .t, .feeditem .t { color: var(--dim); font-size: 11px; }
-  .small { font-size: 12px; color: var(--dim); }
-  .tvgrid { grid-template-columns: repeat(3, 1fr); }
-  @media (max-width: 950px) { .tvgrid { grid-template-columns: 1fr; } }
-  .banner { border-radius: 10px; padding: 12px 16px; font-weight: 600; }
-  .banner.halt { background: #2f1414; color: var(--red); border: 1px solid var(--red); }
-  .banner.replay { background: #14202f; color: var(--blue); border: 1px solid var(--blue); }
-  .banner.asleep { background: #2a2410; color: var(--amber); border: 1px solid var(--amber);
-                   display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-                   justify-content: space-between; }
-  .banner.holiday { background: var(--card2); color: var(--dim); border: 1px solid var(--border); }
-  /* clock */
-  .clockcard { text-align: center; }
-  #clockTime { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  #clockDate { color: var(--dim); margin-bottom: 10px; }
-  .sess { border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-weight: 600;
-          font-size: 13px; background: var(--card2); color: var(--dim);
-          border: 1px solid var(--border); }
-  .sess.on { background: #11271a; color: var(--green); border-color: var(--green); }
-  /* agent feed */
-  .feed { max-height: 460px; overflow-y: auto; display: grid; gap: 2px; }
-  .feeditem { padding: 9px 10px; border-bottom: 1px solid #21262d; font-size: 13px; }
-  .feeditem.k-entry { border-left: 3px solid var(--green); background: #15201a33; }
-  .feeditem.k-exit { border-left: 3px solid var(--gold); background: #2218081f; }
-  .feeditem.k-halt, .feeditem.k-bench { border-left: 3px solid var(--red); }
-  .feeditem.k-adjustment, .feeditem.k-suggestion { border-left: 3px solid var(--blue); }
-  /* suggestions */
-  .sugg { background: var(--card2); border: 1px solid var(--blue); border-radius: 10px;
-          padding: 14px; margin-bottom: 10px; }
-  .sugg .param { font-weight: 700; color: var(--blue); }
-  button { font: inherit; border: none; border-radius: 8px; padding: 8px 16px;
-           cursor: pointer; font-weight: 600; }
-  .approve { background: var(--green); color: #04140a; }
-  .reject { background: var(--card); color: var(--red); border: 1px solid var(--red); }
-  .runbt { background: var(--gold); color: #1a1404; font-size: 15px; padding: 10px 22px; }
-  .wakebt { background: var(--amber); color: #1a1404; font-size: 14px; padding: 9px 18px;
-            white-space: nowrap; }
-  button:disabled { opacity: .45; cursor: default; }
-  .meter { height: 8px; background: var(--card2); border-radius: 99px; overflow: hidden; }
-  .meter > div { height: 100%; background: var(--blue); }
-  /* backtest lab */
-  .chip { display: inline-block; padding: 6px 12px; border-radius: 999px; margin: 3px;
-          background: var(--card2); border: 1px solid var(--border); cursor: pointer;
-          font-size: 13px; user-select: none; }
-  .chip.sel { background: #14202f; border-color: var(--blue); color: var(--blue);
-              font-weight: 600; }
-  .labrow { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 10px 0; }
-  select { background: var(--card2); color: var(--text); border: 1px solid var(--border);
-           border-radius: 8px; padding: 8px 10px; font: inherit; }
-  .prog { height: 10px; background: var(--card2); border-radius: 99px; overflow: hidden;
-          margin-top: 10px; }
-  .prog > div { height: 100%; background: var(--gold); transition: width .5s; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07090F">
+<title>Trading Agent — Console</title>
+<link rel="preload" href="fonts/SpaceGrotesk-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' rx='8' fill='%230E1219'/&gt;&lt;path d='M7 21 13 14l4 4 8-9' stroke='%235585E3' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/&gt;&lt;/svg&gt;">
 </head>
 <body>
-<div class="wrap" id="app">
-  <div class="card"><h1>Loading… (no data.js yet — the bot creates it on its first run)</h1></div>
-</div>
-<div class="wrap" style="margin-top:18px" id="tvsection" hidden>
-  <div><h2 style="margin:0 0 10px 4px">Live charts (TradingView)</h2>
-    <div class="row tvgrid" id="tvrow"></div></div>
-</div>
+<div class="backdrop" aria-hidden="true"></div>
 
-<script>
-/* ============================== helpers ================================= */
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g,
-  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function money(x, sign) {
-  if (x === null || x === undefined) return "—";
-  const v = Number(x);
-  return (sign && v > 0 ? "+" : "") + v.toLocaleString("en-US",
-    {style: "currency", currency: "USD"});
-}
-function cls(v) { return v > 0 ? "pos" : v < 0 ? "neg" : "dim"; }
-function countdown(iso) {
-  const ms = new Date(iso) - Date.now();
-  if (ms < -30 * 60000) return "passed";
-  if (ms < 0) return "NOW";
-  const m = Math.floor(ms / 60000);
-  return m < 60 ? `in ${m}m` : `in ${Math.floor(m / 60)}h ${m % 60}m`;
-}
-function lineSVG(values, starting, height) {
-  if (!values || values.length < 2)
-    return '<div class="small">Not enough data points yet.</div>';
-  const w = 1200, h = height || 220, pad = 34;
-  let lo = Math.min(...values, starting), hi = Math.max(...values, starting);
-  if (hi - lo < 1) { hi += 1; lo -= 1; }
-  const X = i => pad + i * (w - 2 * pad) / (values.length - 1);
-  const Y = v => h - pad - (v - lo) * (h - 2 * pad) / (hi - lo);
-  const pts = values.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-  const col = values[values.length - 1] >= starting ? "var(--green)" : "var(--red)";
-  const dots = values.length <= 80
-    ? values.map((v, i) => `<circle cx="${X(i)}" cy="${Y(v)}" r="3" fill="${col}"/>`).join("") : "";
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" preserveAspectRatio="none">
-    <line x1="${pad}" x2="${w - pad}" y1="${Y(starting)}" y2="${Y(starting)}"
-      stroke="var(--dim)" stroke-dasharray="4 4" stroke-width="1"/>
-    <text x="${w - pad + 2}" y="${Y(starting) + 4}" fill="var(--dim)" font-size="11">$${starting.toLocaleString()}</text>
-    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>${dots}
-  </svg>`;
-}
-function bandsSVG(mc, starting) {
-  const b = mc.bands, n = b.p50.length;
-  if (n < 2) return "";
-  const w = 1200, h = 260, pad = 34;
-  const all = [...b.p5, ...b.p95, starting];
-  let lo = Math.min(...all), hi = Math.max(...all);
-  const X = i => pad + i * (w - 2 * pad) / (n - 1);
-  const Y = v => h - pad - (v - lo) * (h - 2 * pad) / (hi - lo);
-  const area = (top, bot) => {
-    const fwd = top.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-    const rev = bot.slice().reverse().map((v, i) =>
-      `${X(n - 1 - i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-    return fwd + " " + rev;
-  };
-  const med = b.p50.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" preserveAspectRatio="none">
-    <polygon points="${area(b.p95, b.p5)}" fill="#58a6ff18"/>
-    <polygon points="${area(b.p75, b.p25)}" fill="#58a6ff33"/>
-    <line x1="${pad}" x2="${w - pad}" y1="${Y(starting)}" y2="${Y(starting)}"
-      stroke="var(--dim)" stroke-dasharray="4 4"/>
-    <polyline points="${med}" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
-    <text x="${pad}" y="16" fill="var(--dim)" font-size="11">1,000 simulated re-orderings — dark band 25–75%, light band 5–95%, gold = median</text>
-  </svg>`;
-}
-function histSVG(counts, loLabel, hiLabel, color) {
-  const w = 1200, h = 170, pad = 26, mx = Math.max(...counts, 1);
-  const bw = (w - 2 * pad) / counts.length;
-  const bars = counts.map((c, i) =>
-    `<rect x="${(pad + i * bw + 1).toFixed(1)}" y="${(h - pad - (h - 2 * pad) * c / mx).toFixed(1)}"
-      width="${(bw - 2).toFixed(1)}" height="${((h - 2 * pad) * c / mx).toFixed(1)}"
-      fill="${color}" rx="2"/>`).join("");
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" preserveAspectRatio="none">${bars}
-    <text x="${pad}" y="${h - 6}" fill="var(--dim)" font-size="11">${loLabel}</text>
-    <text x="${w - pad}" y="${h - 6}" fill="var(--dim)" font-size="11" text-anchor="end">${hiLabel}</text>
-  </svg>`;
-}
-
-/* =========================== clock + sessions =========================== */
-const FALLBACK_SCHEDULE = {
-  asia: {label: "Asian Session", open_tz: "Asia/Tokyo", open_time: "10:00", duration_minutes: 240},
-  newyork: {label: "New York Session", open_tz: "America/New_York", open_time: "09:30", duration_minutes: 390}
-};
-function tzOffsetMs(tz, date) {
-  // true UTC offset of `tz` at `date`, independent of the browser's own timezone
-  const inTz = new Date(date.toLocaleString("en-US", {timeZone: tz}));
-  const inUtc = new Date(date.toLocaleString("en-US", {timeZone: "UTC"}));
-  return inTz - inUtc;
-}
-function sessionWindows() {
-  const sched = (window.DATA && DATA.schedule) || FALLBACK_SCHEDULE;
-  const out = [], now = new Date();
-  for (let off = -1; off <= 7; off++) {
-    for (const [name, s] of Object.entries(sched)) {
-      const probe = new Date(now.getTime() + off * 86400e3);
-      const p = new Intl.DateTimeFormat("en-CA", {timeZone: s.open_tz, year: "numeric",
-        month: "2-digit", day: "2-digit"}).format(probe).split("-").map(Number);
-      const [hh, mm] = s.open_time.split(":").map(Number);
-      const guess = Date.UTC(p[0], p[1] - 1, p[2], hh, mm);
-      const open = new Date(guess - tzOffsetMs(s.open_tz, new Date(guess)));
-      const dow = new Intl.DateTimeFormat("en-US",
-        {timeZone: s.open_tz, weekday: "short"}).format(open);
-      if (dow === "Sat" || dow === "Sun") continue;
-      out.push({name, label: s.label, open,
-                close: new Date(open.getTime() + s.duration_minutes * 60000)});
-    }
-  }
-  out.sort((a, b) => a.open - b.open);
-  return out;
-}
-function fmtDur(ms) {
-  ms = Math.max(0, ms);
-  const s = Math.floor(ms / 1000), hSeg = Math.floor(s / 3600);
-  return `${hSeg}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
-}
-let WINDOWS = [];
-setInterval(() => { WINDOWS = sessionWindows(); }, 600000);
-function tickClock() {
-  const elT = document.getElementById("clockTime");
-  if (!elT) return;
-  const now = new Date();
-  const SYD = "Australia/Sydney";
-  elT.textContent = now.toLocaleTimeString("en-AU", {hour12: false, timeZone: SYD});
-  document.getElementById("clockDate").textContent =
-    now.toLocaleDateString("en-AU", {weekday: "long", day: "numeric", month: "long",
-                                     year: "numeric", timeZone: SYD}) + " — Sydney";
-  if (!WINDOWS.length) WINDOWS = sessionWindows();
-  const live = WINDOWS.find(s => s.open <= now && now < s.close);
-  const next = WINDOWS.find(s => s.open > now);
-  const box = document.getElementById("sessNow");
-  if (live && window.HOLIDAY_TODAY) {
-    box.className = "sess";
-    box.innerHTML = `🏖️ ${esc(live.label.toUpperCase())} — holiday, market closed`;
-  } else if (live) {
-    box.className = "sess on";
-    box.innerHTML = `● ${esc(live.label.toUpperCase())} LIVE<br>
-      <span style="font-weight:400">ends in ${fmtDur(live.close - now)}</span>`;
-  } else {
-    box.className = "sess";
-    box.innerHTML = `○ No session in progress`;
-  }
-  const nbox = document.getElementById("sessNext");
-  nbox.innerHTML = next
-    ? `Next: <b>${esc(next.label)}</b> — opens in ${fmtDur(next.open - now)}`
-    : "";
-}
-setInterval(tickClock, 1000);
-function liveWindowNow() {
-  if (!WINDOWS.length) WINDOWS = sessionWindows();
-  const now = new Date();
-  return WINDOWS.find(s => s.open <= now && now < s.close) || null;
-}
-
-/* ======================== suggestions actions =========================== */
-async function decide(id, decision, btn) {
-  btn.disabled = true;
-  try {
-    const r = await fetch("/api/decision", {method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({id, decision})});
-    const j = await r.json();
-    btn.closest(".sugg").innerHTML = r.ok
-      ? `<b>${decision === "approved" ? "✅ Approved." : "🚫 Rejected."}</b> <span class="small">${esc(j.note || "")}</span>`
-      : `<span class="neg">${esc(j.error || "failed")}</span>`;
-  } catch (e) {
-    btn.disabled = false;
-    alert("Couldn't reach the dashboard server.\nOpen the dashboard via http://localhost:8765 (the TradingAgent-Dashboard task must be running).");
-  }
-}
-
-/* ============================== wake the bot ============================= */
-async function wakeBot(btn) {
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "Waking…";
-  try {
-    const r = await fetch("/api/wake", {method: "POST",
-      headers: {"Content-Type": "application/json"}, body: "{}"});
-    const j = await r.json();
-    if (r.ok) {
-      btn.textContent = "✓ " + (j.note || "Bot waking…");
-      setTimeout(() => loadData(false), 5000);
-    } else {
-      btn.disabled = false;
-      btn.textContent = original;
-      alert(j.error || "Could not wake the bot.");
-    }
-  } catch (e) {
-    btn.disabled = false;
-    btn.textContent = original;
-    alert("Couldn't reach the dashboard server.\nThe TradingAgent-Dashboard task must be running.");
-  }
-}
-
-/* ===================== trade-row expand (persisted) ===================== */
-/* Remember which trade reflections are open, keyed by the stable trade_id, so a
-   60s refresh (which rebuilds the whole table) doesn't snap them shut mid-read. */
-const OPEN_TRADES = new Set();
-function toggleTrade(id) {
-  const d = document.getElementById("d" + id);
-  if (!d) return;
-  const open = d.style.display !== "table-row";
-  d.style.display = open ? "table-row" : "none";
-  if (open) OPEN_TRADES.add(id); else OPEN_TRADES.delete(id);
-}
-
-/* ============================ backtest lab ============================== */
-const LAB = {sel: new Set(["GOLD", "NQ", "ES"]), session: "both", days: 29,
-             polling: null, lastResult: null};
-const BT_FALLBACK = {GOLD: {name: "Gold", sector: "Metals"}, SILVER: {name: "Silver", sector: "Metals"},
-  COPPER: {name: "Copper", sector: "Metals"}, OIL: {name: "Crude Oil", sector: "Energy"},
-  NQ: {name: "Nasdaq 100", sector: "Indices"}, ES: {name: "S&P 500", sector: "Indices"},
-  YM: {name: "Dow Jones", sector: "Indices"}, EURUSD: {name: "EUR/USD", sector: "Forex"},
-  USDJPY: {name: "USD/JPY", sector: "Forex"}, BTC: {name: "Bitcoin", sector: "Crypto"}};
-function labAssets() {
-  return (window.DATA && DATA.backtest_assets &&
-          Object.keys(DATA.backtest_assets).length) ? DATA.backtest_assets : BT_FALLBACK;
-}
-function toggleAsset(k, el) {
-  if (LAB.sel.has(k)) LAB.sel.delete(k); else LAB.sel.add(k);
-  el.classList.toggle("sel");
-}
-async function runBacktest(btn) {
-  if (!LAB.sel.size) { alert("Pick at least one asset."); return; }
-  btn.disabled = true;
-  try {
-    const r = await fetch("/api/backtest", {method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({assets: [...LAB.sel], session: LAB.session, days: LAB.days})});
-    const j = await r.json();
-    if (!r.ok) { alert(j.error || "could not start"); btn.disabled = false; return; }
-    pollBacktest();
-  } catch (e) {
-    alert("Couldn't reach the dashboard server.\nOpen the dashboard via http://localhost:8765 (the TradingAgent-Dashboard task must be running).");
-    btn.disabled = false;
-  }
-}
-function pollBacktest() {
-  clearInterval(LAB.polling);
-  LAB.polling = setInterval(async () => {
-    try {
-      const r = await fetch("backtests/status.json?t=" + Date.now());
-      const s = await r.json();
-      const box = document.getElementById("btStatus");
-      if (box) box.innerHTML = `${esc(s.msg)} <div class="prog"><div style="width:${s.pct || 0}%"></div></div>`;
-      if (!s.running) {
-        clearInterval(LAB.polling);
-        const btn = document.getElementById("btRun");
-        if (btn) btn.disabled = false;
-        if (s.result) loadResult(s.result);
-        if (s.error && box) box.innerHTML = `<span class="neg">${esc(s.msg)}</span>`;
-      }
-    } catch (e) { /* server not up */ }
-  }, 2000);
-}
-async function loadResult(id) {
-  try {
-    const r = await fetch(`backtests/${id}.json?t=` + Date.now());
-    LAB.lastResult = await r.json();
-    renderBtResult();
-    loadBtHistory();
-  } catch (e) {}
-}
-async function loadBtHistory() {
-  try {
-    const r = await fetch("backtests/index.json?t=" + Date.now());
-    const idx = await r.json();
-    const el = document.getElementById("btHistory");
-    if (!el || !idx.length) return;
-    el.innerHTML = "<h2 style='margin-top:14px'>Previous runs</h2>" + idx.map(x => `
-      <div class="event"><span><a href="#" style="color:var(--blue)" onclick="loadResult('${esc(x.id)}');return false">
-        ${esc(x.created.slice(0, 16).replace("T", " "))}</a>
-        — ${esc(x.assets.join(", "))} · ${esc(x.session)} · ${x.days}d · ${x.trades} trades</span>
-      <b class="${cls(x.total_pnl)}">${money(x.total_pnl, true)}</b></div>`).join("");
-  } catch (e) {}
-}
-function renderBtResult() {
-  const R = LAB.lastResult, el = document.getElementById("btResults");
-  if (!R || !el) return;
-  const s = R.stats;
-  const retPct = (100 * (R.final_balance - R.starting_balance) / R.starting_balance).toFixed(2);
-  const bins = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5];
-  const counts = new Array(bins.length).fill(0);
-  (R.r_values || []).forEach(v => {
-    let i = bins.findIndex(b => v < b); if (i === -1) i = bins.length - 1;
-    counts[i]++;
-  });
-  const mc = R.mc;
-  el.innerHTML = `
-    <div class="small" style="margin:8px 0">Result: <b>${esc(R.id)}</b> —
-      ${esc((R.params.assets || []).join(", "))} · ${esc(R.params.session)} ·
-      ${R.sessions_tested} sessions · effective filters:
-      range ${R.params.strategy.range_atr_min}–${R.params.strategy.range_atr_max}x ATR,
-      cutoff ${R.params.strategy.entry_cutoff_minutes}m</div>
-    <div class="row kpis" style="margin-bottom:12px">
-      <div class="kpi"><div class="l">Total P&L</div>
-        <div class="v ${cls(s.total_pnl)}">${money(s.total_pnl, true)} <span style="font-size:13px">(${retPct}%)</span></div></div>
-      <div class="kpi"><div class="l">Trades</div><div class="v">${s.total_trades}</div></div>
-      <div class="kpi"><div class="l">Win rate</div><div class="v">${s.win_rate ?? "—"}${s.win_rate != null ? "%" : ""}</div></div>
-      <div class="kpi"><div class="l">Profit factor</div><div class="v">${s.profit_factor ?? "—"}</div></div>
-      <div class="kpi"><div class="l">Avg R</div><div class="v">${s.avg_r ?? "—"}</div></div>
-      <div class="kpi"><div class="l">Max drawdown</div><div class="v">${money(s.max_drawdown)}</div></div>
-      <div class="kpi"><div class="l">Best day</div><div class="v pos">${money(R.best_day, true)}</div></div>
-      <div class="kpi"><div class="l">Worst day</div><div class="v neg">${money(R.worst_day, true)}</div></div>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="26" height="26"><path d="M6 22 13 14l4.5 4.5L26 8.5" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
-    <h2>Backtest equity curve</h2>
-    ${lineSVG((R.equity_curve || []).map(p => p.balance), R.starting_balance, 220)}
-    <h2 style="margin-top:14px">R-multiple distribution</h2>
-    ${histSVG(counts, "≤ -1.5R", "≥ +2.5R", "var(--blue)")}
-    ${mc ? `
-    <h2 style="margin-top:14px">Monte Carlo — luck envelope</h2>
-    ${bandsSVG(mc, R.starting_balance)}
-    <div class="row kpis" style="margin-top:10px">
-      <div class="kpi"><div class="l">Median outcome</div><div class="v">${money(mc.stats.median_final)}</div></div>
-      <div class="kpi"><div class="l">Unlucky (P5)</div><div class="v">${money(mc.stats.p5_final)}</div></div>
-      <div class="kpi"><div class="l">Lucky (P95)</div><div class="v">${money(mc.stats.p95_final)}</div></div>
-      <div class="kpi"><div class="l">Odds of profit</div><div class="v">${mc.stats.prob_profit_pct}%</div></div>
-      <div class="kpi"><div class="l">Typical max DD</div><div class="v">${mc.stats.median_max_dd_pct}%</div></div>
-      <div class="kpi"><div class="l">Bad-luck max DD</div><div class="v">${mc.stats.p95_max_dd_pct}%</div></div>
-    </div>
-    <h2 style="margin-top:14px">Final balance distribution (1,000 runs)</h2>
-    ${histSVG(mc.finals_hist.counts, money(mc.finals_hist.lo), money(mc.finals_hist.hi), "var(--gold)")}`
-    : '<div class="small">Monte Carlo needs at least 5 trades.</div>'}`;
-}
-
-/* ============================== main render ============================= */
-function render() {
-  const D = window.DATA;
-  if (!D) return;
-  const feedScroll = document.querySelector(".feed")?.scrollTop || 0;
-  const s = D.stats, replay = (D.bot_status || "").startsWith("REPLAY");
-  const ageMin = (Date.now() - new Date(D.generated_utc)) / 60000;
-  const liveWin = liveWindowNow();
-  /* Holiday badge expires at the skipped session's close (holiday_until), so a stale
-     holiday data.js from a past day doesn't pin the UI; falls through to idle after. */
-  const holiday = D.bot_state === "HOLIDAY"
-                  && D.holiday_until && new Date(D.holiday_until) > new Date();
-  window.HOLIDAY_TODAY = holiday;
-  const asleep = !D.halted_reason && !replay && !holiday && !!liveWin
-                 && (D.bot_state === "ASLEEP" || ageMin > 3);
-  const statusBadge = D.halted_reason
-    ? `<span class="badge halt">⛔ HALTED</span>`
-    : holiday
-      ? `<span class="badge holiday">🏖️ Holiday — market closed</span>`
-      : asleep
-        ? `<span class="badge asleep">💤 ASLEEP — stood down</span>`
-        : ageMin > 6
-          ? `<span class="badge idle">💤 Bot idle / between sessions</span>`
-          : `<span class="badge live">● BOT LIVE</span>`;
-  const wakeBtn = asleep
-    ? `<button class="wakebt" id="wakeBtn" onclick="wakeBot(this)">⏰ Wake the bot</button>`
-    : "";
-  const BIAS = {bullish: ["🐂 Bullish", "var(--green)"], bearish: ["🐻 Bearish", "var(--red)"],
-                consolidation: ["↔️ Consolidation", "var(--amber)"]};
-
-  const stages = Object.entries(D.assets_stage || {}).map(([a, st]) => {
-    const b = BIAS[st.bias];
-    return `
-    <div class="stagecard">
-      ${b ? `<span class="bias" style="color:${b[1]}">${b[0]}</span>` : ""}
-      <span class="a">${a}</span> — ${esc(st.stage)}
-      ${st.range_low ? `<div class="small">range ${st.range_low} – ${st.range_high}
-        (${st.range_atr_ratio}× ATR)</div>` : ""}
-      ${st.filter_reason ? `<div class="small">${esc(st.filter_reason)}</div>` : ""}
-    </div>`;
-  }).join("");
-
-  const open = Object.values(D.open_positions || {});
-  const openHtml = open.length ? open.map(p => `
-    <div class="stagecard"><span class="a">${p.asset}</span>
-      ${p.direction} ${p.units} units @ ${p.entry_price}
-      <div class="small">stop ${p.stop} · target ${p.target} · risking ${money(p.risk_usd)}</div>
-    </div>`).join("") : '<div class="small">No open positions — flat.</div>';
-
-  /* agent feed */
-  const A = D.agent;
-  const feedHtml = (A && A.feed && A.feed.length) ? A.feed.map(f => `
-    <div class="feeditem k-${esc(f.kind)}">
-      <div class="t">${esc((f.t || "").replace("T", " ").slice(0, 16))} UTC</div>
-      ${f.icon} ${esc(f.text)}</div>`).join("")
-    : '<div class="small">The agent narrates here from its next session onward — thinking, entries, trade management, lessons.</div>';
-
-  /* suggestions — prefer the server's live file over the session-time export */
-  const SG = (A && A.suggestions) || {pending: [], history: [], used: 0, budget: 15};
-  if (window.LIVE_SUGG) {
-    SG.pending = window.LIVE_SUGG.filter(x => x.status === "pending");
-    const decided = window.LIVE_SUGG.filter(x => x.status !== "pending").reverse();
-    SG.history = decided.concat(SG.history || []).slice(0, 10);
-  }
-  const pendingHtml = SG.pending.length ? SG.pending.map(p => `
-    <div class="sugg">
-      <div><span class="param">${esc(p.param)}</span> : ${esc(String(p.from))} → <b>${esc(String(p.to))}</b></div>
-      <div style="margin:6px 0">${esc(p.why)}</div>
-      <div class="small" style="margin-bottom:10px">Evidence: ${esc(p.evidence)} · proposed ${esc(p.created)}</div>
-      <button class="approve" onclick="decide('${esc(p.id)}','approved',this)">✓ Approve</button>
-      <button class="reject" onclick="decide('${esc(p.id)}','rejected',this)">✗ Reject</button>
-    </div>`).join("")
-    : '<div class="small">No pending suggestions. While the agent still has auto-refinement budget it applies small, bounded improvements itself; once that\'s spent, proposals appear here for your sign-off.</div>';
-  const histHtml = (SG.history || []).slice(0, 8).map(h => `
-    <div class="event"><span>${esc(h.param)}: ${esc(String(h.from))} → ${esc(String(h.to))}
-      <span class="small">(${esc(h.status || (h.auto ? "auto-applied" : ""))} ${esc(h.day || h.created || "")})</span></span></div>`).join("");
-
-  const trades = (D.trades || []).slice().reverse();
-  const tradeRows = trades.map((t) => {
-    const r = t.reflection || {};
-    const tid = t.trade_id;
-    return `
-    <tr class="trade" onclick="toggleTrade('${tid}')">
-      <td>#${t.trade_id}</td><td>${t.day_key}</td><td>${t.session}</td>
-      <td><b>${t.asset}</b></td><td>${t.direction}</td>
-      <td>${t.entry_price} → ${t.exit_price}</td>
-      <td>${esc(t.exit_reason)}</td>
-      <td class="${cls(t.r_multiple)}">${(t.r_multiple > 0 ? "+" : "") + t.r_multiple}R</td>
-      <td class="${cls(t.pnl)}"><b>${money(t.pnl, true)}</b></td>
-      <td>${t.duration_min}m</td>
-    </tr>
-    <tr class="detail" id="d${tid}" style="display:none"><td colspan="10">
-      <b>🧠 Thinking:</b> ${esc(r.thinking)}<br>
-      <b>✅ Went well:</b> ${esc((r.went_well || []).join(" "))}<br>
-      <b>🔧 Improve:</b> ${esc((r.improve || []).join(" "))}
-      ${(t.context && t.context.headlines && t.context.headlines.length)
-        ? `<br><b>📰 At entry:</b> ${esc(t.context.headlines.join(" · "))}` : ""}
-    </td></tr>`;
-  }).join("");
-
-  const perAsset = Object.entries(s.per_asset || {}).map(([a, v]) => `
-    <tr><td><b>${a}</b></td><td>${v.trades}</td>
-      <td>${v.trades ? Math.round(100 * v.wins / v.trades) : 0}%</td>
-      <td class="${cls(v.pnl)}">${money(v.pnl, true)}</td></tr>`).join("");
-
-  const events = (D.events || []).slice(0, 10).map(e => {
-    const lbl = e.impact === "Holiday" ? "🏖️ Non-Economic" : e.impact;
-    return `
-    <div class="event"><span>${e.top_tier ? "🚨 " : ""}<span
-      class="impact-${e.impact}">${lbl}</span> ${esc(e.title)}</span>
-      <span class="dim">${countdown(e.when)}</span></div>`;
-  }).join("")
-    || '<div class="small">No notable events in the next 48 h.</div>';
-
-  const headlines = (D.headlines || []).slice(0, 8).map(h =>
-    `<li>${esc(h.title)}</li>`).join("") || '<li class="small">No headlines cached yet.</li>';
-
-  const lessons = (D.lessons || []).map(l => `
-    <div class="lesson"><div class="t">${esc(l.t)}</div>${esc(l.text)}</div>`).join("")
-    || '<div class="small">Lessons appear after the first trades.</div>';
-
-  /* backtest lab assets */
-  const cat = labAssets();
-  const bySector = {};
-  Object.entries(cat).forEach(([k, v]) => (bySector[v.sector] = bySector[v.sector] || []).push([k, v]));
-  const chips = Object.entries(bySector).map(([sec, list]) =>
-    `<span class="small" style="margin-right:4px">${esc(sec)}:</span>` +
-    list.map(([k, v]) => `<span class="chip ${LAB.sel.has(k) ? "sel" : ""}"
-      onclick="toggleAsset('${k}', this)">${esc(v.name)}</span>`).join("")).join("<br>");
-
-  document.getElementById("app").innerHTML = `
-  ${replay ? '<div class="banner replay">🔁 Showing REPLAY data (test run on historical prices) — live data takes over at the next session.</div>' : ""}
-  ${D.halted_reason ? `<div class="banner halt">⛔ ${esc(D.halted_reason)}</div>` : ""}
-  ${asleep ? `<div class="banner asleep"><span>💤 The bot stood down (data feed dropped) but
-    <b>${esc(liveWin.label)}</b> is still live — wake it to resume trading.</span>${wakeBtn}</div>` : ""}
-  ${holiday ? `<div class="banner holiday">🏖️ ${esc(D.bot_status)} — the bot is standing down for a
-    market holiday; trading resumes next session.</div>` : ""}
-
-  <div class="row colsHC">
-    <div class="card header">
-      <div>
-        <h1>🤖 Trading Agent <span class="small">paper account</span></h1>
-        <div class="small">data: ${esc(D.generated_local)} · ${statusBadge}</div>
-      </div>
-      <div style="text-align:right">
-        <div class="balance">${money(D.balance)}</div>
-        <div>Today: <b class="${cls(D.day_pnl)}">${money(D.day_pnl, true)}</b>
-          <span class="dim">· since start:</span>
-          <b class="${cls(D.balance - D.starting_balance)}">${money(D.balance - D.starting_balance, true)}</b></div>
-      </div>
-    </div>
-    <div class="card clockcard">
-      <div id="clockTime">--:--:--</div>
-      <div id="clockDate"></div>
-      <div class="sess" id="sessNow">…</div>
-      <div class="small" id="sessNext" style="margin-top:8px"></div>
+    <div class="brand-text">
+      <span class="brand-name">TRADING&nbsp;AGENT</span>
+      <span class="brand-sub" id="brandSub">paper account</span>
     </div>
   </div>
+  <div class="topbar-session" id="topSession"></div>
+  <div class="topbar-spacer"></div>
+  <div class="topbar-fresh" id="dataFresh" title="Age of the latest data snapshot"></div>
+  <div class="topbar-clock">
+    <span class="clock-time" id="clockTime">--:--:--</span>
+    <span class="clock-zone" id="clockZone">Sydney</span>
+  </div>
+  <div id="wakeSlot"></div>
+</header>
 
-  <div class="card">
-    <h2>Current stage — ${esc(D.session || "no session")}</h2>
-    <div class="small" style="margin-bottom:10px">${esc(D.bot_status)}</div>
-    <div class="row cols3">${stages || '<span class="small">Bot has not started a session yet.</span>'}</div>
-    <div style="margin-top:14px"><h2>Open positions</h2>
-      <div class="row cols3">${openHtml}</div></div>
-    <div class="small" style="margin-top:10px">
-      Trades this session: <b>${D.trades_this_session}/${D.caps?.per_session}</b> ·
-      today: <b>${D.trades_today}/${D.caps?.per_day}</b>
-      ${Object.keys(D.benched || {}).length ? " · benched: " + esc(Object.keys(D.benched).join(", ")) : ""}
+<div id="banners"></div>
+
+<main class="grid" id="app">
+  <!-- Row: hero + live market -->
+  <div class="col-left">
+    <section class="card hero-card reveal" id="hero" aria-label="Current capital"></section>
+    <section class="card reveal" id="positions" aria-label="Open positions"></section>
+  </div>
+  <section class="card market-card reveal" id="market" aria-label="Live market chart"></section>
+
+  <!-- Row: metrics panel -->
+  <section class="card reveal span-12" id="metrics" aria-label="Performance metrics"></section>
+
+  <!-- Row: equity + agent activity -->
+  <div class="col-mid">
+    <section class="card reveal" id="equity" aria-label="Equity curve"></section>
+    <div class="perf-row">
+      <section class="card reveal" id="dailyPnl" aria-label="Daily profit and loss"></section>
+      <section class="card reveal" id="rDist" aria-label="R-multiple distribution"></section>
+      <section class="card reveal" id="breakdown" aria-label="Performance breakdown"></section>
     </div>
   </div>
+  <section class="card agent-card reveal" id="agent" aria-label="Agent activity"></section>
 
-  <div class="row colsHC">
-    <div class="card"><h2>🧠 Agent feed — what I'm thinking and doing</h2>
-      <div class="feed">${feedHtml}</div></div>
-    <div class="card"><h2>💡 Suggestions &amp; refinements</h2>
-      <div class="small" style="margin-bottom:6px">Auto-refinements used:
-        <b>${SG.used}/${SG.budget}</b></div>
-      <div class="meter" style="margin-bottom:12px"><div style="width:${100 * SG.used / (SG.budget || 1)}%"></div></div>
-      ${pendingHtml}
-      ${histHtml ? `<h2 style="margin-top:12px">Change history</h2>${histHtml}` : ""}
-    </div>
-  </div>
+  <!-- Row: suggestions + market intel -->
+  <section class="card reveal span-6" id="suggest" aria-label="Suggestions and refinements"></section>
+  <section class="card reveal span-6" id="intel" aria-label="News and headlines"></section>
 
-  <div class="row kpis">
-    <div class="kpi"><div class="l">Total P&L</div>
-      <div class="v ${cls(s.total_pnl)}">${money(s.total_pnl, true)}</div></div>
-    <div class="kpi"><div class="l">Win rate</div>
-      <div class="v">${s.win_rate ?? "—"}${s.win_rate != null ? "%" : ""}</div></div>
-    <div class="kpi"><div class="l">Profit factor</div><div class="v">${s.profit_factor ?? "—"}</div></div>
-    <div class="kpi"><div class="l">Avg win</div><div class="v pos">${money(s.avg_win)}</div></div>
-    <div class="kpi"><div class="l">Avg loss</div><div class="v neg">${money(s.avg_loss)}</div></div>
-    <div class="kpi"><div class="l">Avg R</div><div class="v">${s.avg_r ?? "—"}</div></div>
-    <div class="kpi"><div class="l">Max drawdown</div><div class="v">${money(s.max_drawdown)}</div></div>
-    <div class="kpi"><div class="l">Trades</div><div class="v">${s.total_trades}</div></div>
-  </div>
+  <!-- Row: backtest lab -->
+  <section class="card reveal span-12" id="lab" aria-label="Backtest lab"></section>
 
-  <div class="card"><h2>Equity curve</h2>
-    ${lineSVG((D.equity_curve || []).map(p => p.balance), D.starting_balance, 220)}</div>
+  <!-- Row: archive + lessons -->
+  <section class="card reveal span-8" id="archive" aria-label="Trade archive"></section>
+  <section class="card reveal span-4" id="lessons" aria-label="Lessons learned"></section>
+</main>
 
-  <div class="row cols2">
-    <div class="card"><h2>📅 Upcoming news (ForexFactory)</h2>${events}</div>
-    <div class="card"><h2>📰 Headlines (CNBC)</h2><ul>${headlines}</ul></div>
-  </div>
+<footer class="footer" id="footer"></footer>
 
-  <div class="row cols2">
-    <div class="card"><h2>Per-asset performance</h2>
-      <table><tr><th>Asset</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr>${perAsset ||
-        '<tr><td colspan="4" class="small">No closed trades yet.</td></tr>'}</table></div>
-    <div class="card"><h2>📓 Latest lessons</h2>${lessons}</div>
-  </div>
+<div class="chart-tip" id="chartTip" role="tooltip" hidden></div>
 
-  <div class="card"><h2>🧪 Backtest Lab</h2>
-    <div class="small">Test the CURRENT strategy (including any agent refinements) on real
-      historical data. Yahoo's free 1-minute data reaches back ~29 days — that's the honest limit.</div>
-    <div class="labrow" style="display:block; margin-top:10px">${chips}</div>
-    <div class="labrow">
-      <label>Session:
-        <select onchange="LAB.session=this.value">
-          <option value="both" ${LAB.session === "both" ? "selected" : ""}>Both sessions</option>
-          <option value="asia" ${LAB.session === "asia" ? "selected" : ""}>Asia only</option>
-          <option value="newyork" ${LAB.session === "newyork" ? "selected" : ""}>New York only</option>
-        </select></label>
-      <label>Period:
-        <select onchange="LAB.days=Number(this.value)">
-          <option value="7" ${LAB.days === 7 ? "selected" : ""}>Last 7 days</option>
-          <option value="14" ${LAB.days === 14 ? "selected" : ""}>Last 14 days</option>
-          <option value="29" ${LAB.days === 29 ? "selected" : ""}>Last 29 days (max)</option>
-        </select></label>
-      <button class="runbt" id="btRun" onclick="runBacktest(this)">▶ Run Backtest</button>
-    </div>
-    <div id="btStatus" class="small"></div>
-    <div id="btResults"></div>
-    <div id="btHistory"></div>
-  </div>
-
-  <div class="card"><h2>Trade archive <span class="small">(click a row for the full reflection)</span></h2>
-    <table><tr><th>#</th><th>Date</th><th>Session</th><th>Asset</th><th>Dir</th>
-      <th>Entry → Exit</th><th>Exit via</th><th>R</th><th>P&L</th><th>Held</th></tr>
-      ${tradeRows || '<tr><td colspan="10" class="small">No trades yet — the archive fills up as the bot trades.</td></tr>'}
-    </table></div>
-
-  <div class="small" style="text-align:center; padding-bottom: 20px">
-    Risk: ${D.risk_config?.risk_per_trade_pct}% per trade · daily stop −${D.risk_config?.daily_loss_limit_pct}%
-    · max ${D.risk_config?.max_trades_per_session}/session, ${D.risk_config?.max_trades_per_day}/day
-    · data refreshes every 60 s · clock is live
-  </div>`;
-
-  /* restore the UI state the full re-render would otherwise wipe */
-  const fb = document.querySelector(".feed");
-  if (fb) fb.scrollTop = feedScroll;
-  OPEN_TRADES.forEach(id => {
-    const d = document.getElementById("d" + id);
-    if (d) d.style.display = "table-row"; else OPEN_TRADES.delete(id);
-  });
-
-  /* TradingView widgets live OUTSIDE the re-rendered area — created exactly once
-     so the iframes aren't churned on every data refresh */
-  const tvrow = document.getElementById("tvrow");
-  if (!tvrow.childElementCount && Object.keys(D.tv_widgets || {}).length) {
-    document.getElementById("tvsection").hidden = false;
-    Object.values(D.tv_widgets).forEach(sym => {
-      const card = document.createElement("div");
-      card.className = "card"; card.style.padding = "8px";
-      const holder = document.createElement("div");
-      holder.className = "tradingview-widget-container";
-      const sc = document.createElement("script");
-      sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-      sc.async = true;
-      sc.text = JSON.stringify({symbol: sym, width: "100%", height: 200, locale: "en",
-        dateRange: "1D", colorTheme: "dark", isTransparent: true, autosize: false});
-      holder.appendChild(sc); card.appendChild(holder); tvrow.appendChild(card);
-    });
-  }
-
-  tickClock();
-  if (LAB.lastResult) renderBtResult();
-  loadBtHistory();
-}
-
-/* ============================ data loading ============================== */
-function loadData(first) {
-  const D0 = window.DATA;
-  const sc = document.createElement("script");
-  sc.src = "data.js?t=" + Date.now();
-  sc.onload = () => {
-    sc.remove();  // don't pile up a dead <script> every refresh
-    if (first || (window.DATA && (!D0 || window.DATA.generated_utc !== D0.generated_utc)))
-      render();
-  };
-  sc.onerror = () => { sc.remove(); };
-  document.body.appendChild(sc);
-}
-async function loadSuggestions() {
-  try {
-    const r = await fetch("/api/suggestions?t=" + Date.now());
-    const j = await r.json();
-    const changed = JSON.stringify(j) !== JSON.stringify(window.LIVE_SUGG);
-    window.LIVE_SUGG = j;
-    if (changed && window.DATA) render();
-  } catch (e) { /* static file mode — fall back to data.js export */ }
-}
-loadData(true);
-loadSuggestions();
-setInterval(() => loadData(false), 60000);
-setInterval(loadSuggestions, 30000);
-/* surface the ASLEEP state + wake button as data goes stale inside a live window,
-   even though generated_utc has stopped changing because the bot exited */
-setInterval(() => {
-  if (!window.DATA) return;
-  const ageMin = (Date.now() - new Date(DATA.generated_utc)) / 60000;
-  if (ageMin > 3 && liveWindowNow()) render();
-}, 20000);
-/* resume an in-flight backtest if the page was reloaded mid-run */
-fetch("backtests/status.json?t=" + Date.now()).then(r => r.json())
-  .then(s => { if (s.running) pollBacktest(); else if (s.result) loadResult(s.result); })
-  .catch(() => {});
-</script>
+<script src="js/util.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/components.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
