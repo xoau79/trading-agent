@@ -702,18 +702,45 @@
     } catch (e) {}
   }
 
+  const TRASH_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+
   async function loadBtHistory() {
     try {
       const r = await fetch("backtests/index.json?t=" + Date.now());
       const idx = await r.json();
       const el = $("btHistory");
-      if (!el || !idx.length) return;
+      if (!el) return;
+      if (!idx.length) { el.innerHTML = ""; return; }
       el.innerHTML = `<div class="bt-section-title">Previous runs</div>` + idx.map((x) => `
-        <div class="hist-item"><span><a class="bt-link" data-id="${U.esc(x.id)}">${U.esc(x.created.slice(0, 16).replace("T", " "))}</a>
+        <div class="hist-item bt-hist-item" data-id="${U.esc(x.id)}">
+          <button class="hist-del" type="button" title="Delete this run" aria-label="Delete this backtest run">${TRASH_SVG}</button>
+          <span><a class="bt-link" data-id="${U.esc(x.id)}">${U.esc(x.created.slice(0, 16).replace("T", " "))}</a>
           — ${U.esc(x.assets.join(", "))} · ${U.esc(x.session)} · ${x.days}d · ${x.trades} trades</span>
           <b class="mono ${U.cls(x.total_pnl)}">${U.money(x.total_pnl, true)}</b></div>`).join("");
       el.querySelectorAll(".bt-link").forEach((a) => { a.onclick = () => loadResult(a.dataset.id); });
+      el.querySelectorAll(".hist-del").forEach((btn) => { btn.onclick = (e) => deleteBtRun(e, btn.closest(".bt-hist-item").dataset.id); });
     } catch (e) {}
+  }
+
+  async function deleteBtRun(e, id) {
+    e.stopPropagation();
+    const row = e.currentTarget.closest(".bt-hist-item");
+    if (row) row.style.pointerEvents = "none";
+    try {
+      const r = await fetch("/api/backtest/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!r.ok) { if (row) row.style.pointerEvents = ""; return; }
+      if (S.lab.lastResult && S.lab.lastResult.id === id) {
+        S.lab.lastResult = null;
+        const results = $("btResults");
+        if (results) results.innerHTML = "";
+      }
+      loadBtHistory();
+    } catch (err) {
+      if (row) row.style.pointerEvents = "";
+    }
   }
 
   function btKpi(label, value, cls) {

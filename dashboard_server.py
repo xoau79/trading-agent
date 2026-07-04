@@ -14,6 +14,7 @@ Bound to 127.0.0.1 only — nothing outside this PC can reach it.
 """
 import json
 import logging
+import re
 import subprocess
 import sys
 import threading
@@ -24,8 +25,10 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 DASHBOARD = BASE / "dashboard"
 SUGGESTIONS = BASE / "journal" / "suggestions.json"
-STATUS = DASHBOARD / "backtests" / "status.json"
+BACKTESTS_DIR = DASHBOARD / "backtests"
+STATUS = BACKTESTS_DIR / "status.json"
 DATA_JS = DASHBOARD / "data.js"
+BT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s",
@@ -116,6 +119,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._decide(data)
         if self.path == "/api/backtest":
             return self._backtest(data)
+        if self.path == "/api/backtest/delete":
+            return self._delete_backtest(data)
         if self.path == "/api/wake":
             return self._wake(data)
         return self._json(404, {"error": "unknown endpoint"})
@@ -172,6 +177,27 @@ class Handler(SimpleHTTPRequestHandler):
                                "error": True})
         threading.Thread(target=watch, daemon=True).start()
         log.info("backtest started: %s %s %sd", assets, session, days)
+        return self._json(200, {"ok": True})
+
+    def _delete_backtest(self, data):
+        bt_id = data.get("id", "")
+        if not BT_ID_RE.fullmatch(bt_id or ""):
+            return self._json(400, {"error": "invalid id"})
+        index_file = BACKTESTS_DIR / "index.json"
+        try:
+            index = json.loads(index_file.read_text(encoding="utf-8")) if index_file.exists() else []
+        except Exception:
+            index = []
+        new_index = [x for x in index if x.get("id") != bt_id]
+        if len(new_index) == len(index):
+            return self._json(404, {"error": "run not found"})
+        tmp = str(index_file) + ".tmp"
+        Path(tmp).write_text(json.dumps(new_index, indent=1), encoding="utf-8")
+        Path(tmp).replace(index_file)
+        result_file = BACKTESTS_DIR / f"{bt_id}.json"
+        if result_file.exists():
+            result_file.unlink()
+        log.info("backtest run deleted: %s", bt_id)
         return self._json(200, {"ok": True})
 
     def _wake(self, data):
