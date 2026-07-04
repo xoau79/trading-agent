@@ -8,6 +8,7 @@
 
   /* ------------------------------ tokens -------------------------------- */
   let TOK = null;
+  function refreshTokens() { TOK = null; }
   function tokens() {
     if (TOK) return TOK;
     const cs = getComputedStyle(document.documentElement);
@@ -816,5 +817,5 @@
     el.innerHTML = svg;
   }
 
-  window.Charts = { CandleChart, LineChart, BarChart, BandChart, sparkline, Tip, tokens };
+  window.Charts = { CandleChart, LineChart, BarChart, BandChart, sparkline, Tip, tokens, refreshTokens };
 })();
