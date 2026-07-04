@@ -17,7 +17,7 @@ the growing strategy library.
 | `news.py` | ForexFactory calendar (bank-holiday detection, news blackout, top-tier flatten), CNBC headlines, TradingView ratings |
 | `journal.py` | Trade archives, lessons, dashboard data |
 | `dashboard/` + `dashboard_server.py` | The dashboard at http://localhost:8765 — visual rules in `DESIGN.md` |
-| `ops/` | Smoke test, watchdog, Task Scheduler setup — see `docs/ARCHITECTURE.md` |
+| `ops/` | Smoke test, Task Scheduler setup — see `docs/ARCHITECTURE.md` |
 | `docs/` | Architecture notes and reference material (including IBKR API course notes in `docs/ibkr/`) |
 | `config.json` | Universal settings — risk %, trade caps, session times, news filters |
 | `.env` | Secrets (Discord webhook, broker credentials, API keys) — gitignored, copy from `.env.example` |
@@ -42,7 +42,6 @@ moves is its Sydney-time *equivalent* (11:00 AEST in winter vs. 12:00 AEDT in su
 `bot.py`'s `session_window()` works that conversion out fresh every run via `zoneinfo`, so
 the dashboard clock (always shown in `Australia/Sydney`) automatically tracks the correct
 wall-clock hour across both timezones' independent DST calendars with no manual tweaking.
-`ops/watchdog.py` runs on its own schedule to catch and recover a hung session automatically.
 
 **Bank holidays are skipped automatically.** Before each session the bot reads the
 ForexFactory calendar: a JPY or AUD bank holiday cancels the Asian session; a USD bank
@@ -139,4 +138,4 @@ parameters live in each strategy's own folder. Change a number, save, and the ne
 To reset the account back to $10,000: delete `state.json`, `journal\trades.json` and `journal\lessons.json`.
 
 Scheduled tasks: `TradingAgent-Asia` (10:30 AM), `TradingAgent-NY` (11:00 PM),
-`TradingAgent-Dashboard` (at logon), `TradingAgent-Watchdog` (every 5 min).
+`TradingAgent-Dashboard` (at logon).

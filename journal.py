@@ -25,7 +25,6 @@ TRADES_FILE = JOURNAL / "trades.json"
 LESSONS_JSON = JOURNAL / "lessons.json"
 LESSONS_MD = JOURNAL / "lessons.md"
 DATA_JS = BASE / "dashboard" / "data.js"
-HEARTBEAT_FILE = JOURNAL / "heartbeat.json"
 
 
 def _atomic_write(path, text):
@@ -40,19 +39,6 @@ def _load(path, default):
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
     return default
-
-
-# --------------------------------------------------------------------------
-# Heartbeat: written every live-loop iteration so ops/watchdog.py can tell a hung
-# process (no exception, just stuck — see data_feed/yahoo.py's docstring for the
-# failure mode this responds to) apart from one that's simply between sessions.
-# --------------------------------------------------------------------------
-def write_heartbeat(session_name, pid=None):
-    _atomic_write(HEARTBEAT_FILE, json.dumps({
-        "session": session_name,
-        "pid": pid or os.getpid(),
-        "t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }))
 
 
 # --------------------------------------------------------------------------

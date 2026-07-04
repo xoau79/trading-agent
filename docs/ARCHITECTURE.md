@@ -15,7 +15,6 @@ Task Scheduler ──▶ bot.py --session {asia|newyork}
                        └── journal.py            ──▶ trade archives, dashboard/data.js
 
 dashboard_server.py ──▶ http://localhost:8765 (serves dashboard/, Approve/Reject + Backtest Lab endpoints)
-ops/watchdog.py     ──▶ scheduled every 5 min, detects a hung bot.py via journal/heartbeat.json, recovers it
 ```
 
 One loop iteration (`Engine.step`, in `bot.py`) per ~45 seconds: pull fresh bars, manage any open position,
@@ -73,10 +72,5 @@ HTML file's source to change it, following `DESIGN.md`.
 
 - **`ops/smoke_test.py`** — checks every external feed is reachable; run manually or before trusting a
   fresh environment.
-- **`ops/watchdog.py`** — the fix for the "bot goes dark mid-session" failure mode: a heartbeat file
-  (`journal/heartbeat.json`) written every loop, checked by a separate scheduled task every 5 minutes. A
-  stale heartbeat means the main loop hung (e.g. a network call with no timeout) — the watchdog kills the
-  hung process, safely flattens anything left open, alerts Discord, and restarts if the session window is
-  still active.
 - **`ops/register_tasks.ps1`** — versioned Task Scheduler setup, so the automation is reproducible from the
   repo instead of living only in one machine's scheduler configuration.
