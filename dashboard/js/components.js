@@ -132,7 +132,8 @@
     arc.style.stroke = col;
     arc.style.strokeDashoffset = String(251.3 * (1 - Math.max(frac, st !== 0 ? 0.06 : 0)));
     box.querySelector(".halo").style.setProperty("--halo",
-      st > 0 ? "rgba(61,214,140,0.18)" : st < 0 ? "rgba(242,100,108,0.18)" : "transparent");
+      st > 0 ? "color-mix(in srgb, var(--up-ink), transparent 82%)"
+      : st < 0 ? "color-mix(in srgb, var(--down-ink), transparent 82%)" : "transparent");
     $("streakIc").textContent = st > 0 ? "🔥" : st < 0 ? "↓" : "◦";
     $("streakN").textContent = st > 0 ? "+" + st : st < 0 ? String(st) : "0";
     $("streakLbl").textContent = st > 0 ? "Win streak" : st < 0 ? "Loss streak" : "No streak";

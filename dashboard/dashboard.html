@@ -13,7 +13,12 @@
 <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' rx='8' fill='%230E1219'/&gt;&lt;path d='M7 21 13 14l4 4 8-9' stroke='%235585E3' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/&gt;&lt;/svg&gt;">
 </head>
 <body>
+<div class="wallpaper" id="wallpaper" aria-hidden="true" hidden>
+  <div class="wallpaper-img" id="wallpaperImg"></div>
+  <div class="wallpaper-dim" id="wallpaperDim"></div>
+</div>
 <div class="backdrop" aria-hidden="true"></div>
+<script src="js/theme.js"></script>
 
 <header class="topbar">
   <div class="brand">
@@ -32,6 +37,10 @@
     <span class="clock-time" id="clockTime">--:--:--</span>
     <span class="clock-zone" id="clockZone">Sydney</span>
   </div>
+  <button class="btn btn-customize" id="customizeBtn" type="button" aria-haspopup="dialog" aria-controls="customizePanel" title="Customize appearance">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span class="customize-label">Customize</span>
+  </button>
   <div id="wakeSlot"></div>
 </header>
 
@@ -75,9 +84,91 @@
 
 <div class="chart-tip" id="chartTip" role="tooltip" hidden></div>
 
+<div class="customize-overlay" id="customizeOverlay" hidden></div>
+<aside class="customize-panel" id="customizePanel" role="dialog" aria-modal="true" aria-label="Customize appearance" hidden>
+  <div class="cz-head">
+    <h2>Customize</h2>
+    <button class="cz-close" id="customizeClose" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="cz-body">
+
+    <section class="cz-section">
+      <h3>Background</h3>
+      <div class="cz-modes" id="czBgModes">
+        <button class="cz-mode" type="button" data-bg-mode="color">Color</button>
+        <button class="cz-mode" type="button" data-bg-mode="image">Image</button>
+      </div>
+
+      <div id="czBgColorGroup">
+        <div class="cz-row">
+          <div><div class="cz-label">Background colour</div></div>
+          <input type="color" class="cz-color-input" id="czBg">
+        </div>
+      </div>
+
+      <div id="czBgImageGroup" hidden>
+        <div class="cz-upload">
+          <div class="cz-thumb" id="czWallpaperThumb"></div>
+          <label class="cz-file-label">Upload image<input type="file" id="czWallpaperFile" accept="image/*"></label>
+          <button class="btn" id="czWallpaperClear" type="button">Remove</button>
+        </div>
+        <div class="cz-range-row">
+          <div class="cz-range-head"><span class="cz-label">Image blur</span><span class="cz-range-val" id="czWallpaperBlurVal"></span></div>
+          <input type="range" class="cz-range" id="czWallpaperBlur" min="0" max="30" step="1">
+        </div>
+        <div class="cz-range-row">
+          <div class="cz-range-head"><span class="cz-label">Dim overlay</span><span class="cz-range-val" id="czWallpaperDimVal"></span></div>
+          <input type="range" class="cz-range" id="czWallpaperDim" min="0" max="90" step="1">
+        </div>
+        <div class="cz-error" id="czWallpaperError" hidden></div>
+      </div>
+
+      <div class="cz-range-row" style="margin-top:14px">
+        <div class="cz-range-head"><span class="cz-label">Panel glass blur</span><span class="cz-range-val" id="czGlassBlurVal"></span></div>
+        <input type="range" class="cz-range" id="czGlassBlur" min="0" max="30" step="1">
+        <div class="cz-sub">Frosts the dashboard cards so a busy background doesn't interfere with reading.</div>
+      </div>
+      <div class="cz-range-row">
+        <div class="cz-range-head"><span class="cz-label">Panel opacity</span><span class="cz-range-val" id="czGlassOpacityVal"></span></div>
+        <input type="range" class="cz-range" id="czGlassOpacity" min="40" max="100" step="1">
+      </div>
+    </section>
+
+    <section class="cz-section">
+      <h3>Accent</h3>
+      <div class="cz-row">
+        <div class="cz-label">Accent colour</div>
+        <input type="color" class="cz-color-input" id="czAccent">
+      </div>
+      <div class="cz-range-row">
+        <div class="cz-range-head"><span class="cz-label">Glow strength</span><span class="cz-range-val" id="czGlowVal"></span></div>
+        <input type="range" class="cz-range" id="czGlow" min="0" max="200" step="5">
+      </div>
+    </section>
+
+    <section class="cz-section">
+      <h3>Profit &amp; loss</h3>
+      <div class="cz-row">
+        <div class="cz-label">Profit colour</div>
+        <input type="color" class="cz-color-input" id="czProfit">
+      </div>
+      <div class="cz-row">
+        <div class="cz-label">Loss colour</div>
+        <input type="color" class="cz-color-input" id="czLoss">
+      </div>
+      <div class="cz-note">Applied everywhere — every positive figure shares the profit colour, every negative figure shares the loss colour.</div>
+    </section>
+
+  </div>
+  <div class="cz-foot">
+    <button class="btn" id="czReset" type="button">Reset to defaults</button>
+  </div>
+</aside>
+
 <script src="js/util.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/components.js"></script>
 <script src="js/app.js"></script>
+<script src="js/customize.js"></script>
 </body>
 </html>
