@@ -756,6 +756,7 @@ tr.detail-row td {
   transition: transform var(--t-med) var(--ease);
 }
 .customize-panel.open { transform: translateX(0); }
+.customize-panel[hidden] { display: none; }
 
 .cz-head {
   display: flex; align-items: center; justify-content: space-between;

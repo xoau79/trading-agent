@@ -69,7 +69,9 @@
   function hideError() { els.wallpaperError.hidden = true; }
 
   /* -------------------------------- panel open/close -------------------- */
+  let hideTimer = null;
   function openPanel() {
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
     els.overlay.hidden = false;
     els.panel.hidden = false;
     requestAnimationFrame(() => {
@@ -82,7 +84,12 @@
     els.overlay.classList.remove("open");
     els.panel.classList.remove("open");
     document.removeEventListener("keydown", onKeydown);
-    setTimeout(() => { els.overlay.hidden = true; els.panel.hidden = true; }, 280);
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      els.overlay.hidden = true;
+      els.panel.hidden = true;
+      hideTimer = null;
+    }, 280);
   }
   function onKeydown(e) { if (e.key === "Escape") closePanel(); }
 
