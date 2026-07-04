@@ -81,7 +81,7 @@ if (-not $Only -or $Only -eq "RepoSync") {
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$RepoRoot\ops\sync_repo.ps1`"" `
         -WorkingDirectory $RepoRoot
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-        -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
+        -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 3650)
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew -StartWhenAvailable
     Register-ScheduledTask -TaskName "TradingAgent-RepoSync" -Action $action -Trigger $trigger `
