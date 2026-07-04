@@ -102,7 +102,10 @@
       <div id="czBgColorGroup">
         <div class="cz-row">
           <div><div class="cz-label">Background colour</div></div>
-          <input type="color" class="cz-color-input" id="czBg">
+          <div class="cz-color-group">
+            <input type="color" class="cz-color-input" id="czBg">
+            <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czBgHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="07090F" aria-label="Background colour hex code"></label>
+          </div>
         </div>
       </div>
 
@@ -138,11 +141,15 @@
       <h3>Accent</h3>
       <div class="cz-row">
         <div class="cz-label">Accent colour</div>
-        <input type="color" class="cz-color-input" id="czAccent">
+        <div class="cz-color-group">
+          <input type="color" class="cz-color-input" id="czAccent">
+          <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czAccentHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="5585E3" aria-label="Accent colour hex code"></label>
+        </div>
       </div>
       <div class="cz-range-row">
         <div class="cz-range-head"><span class="cz-label">Glow strength</span><span class="cz-range-val" id="czGlowVal"></span></div>
         <input type="range" class="cz-range" id="czGlow" min="0" max="200" step="5">
+        <div class="cz-sub">Brightest at the edge of each element, radiating outward — 0% turns it off, 200% is the most intense.</div>
       </div>
     </section>
 
@@ -150,13 +157,31 @@
       <h3>Profit &amp; loss</h3>
       <div class="cz-row">
         <div class="cz-label">Profit colour</div>
-        <input type="color" class="cz-color-input" id="czProfit">
+        <div class="cz-color-group">
+          <input type="color" class="cz-color-input" id="czProfit">
+          <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czProfitHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="3DD68C" aria-label="Profit colour hex code"></label>
+        </div>
       </div>
       <div class="cz-row">
         <div class="cz-label">Loss colour</div>
-        <input type="color" class="cz-color-input" id="czLoss">
+        <div class="cz-color-group">
+          <input type="color" class="cz-color-input" id="czLoss">
+          <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czLossHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="F2646C" aria-label="Loss colour hex code"></label>
+        </div>
       </div>
       <div class="cz-note">Applied everywhere — every positive figure shares the profit colour, every negative figure shares the loss colour.</div>
+    </section>
+
+    <section class="cz-section">
+      <h3>Monte Carlo</h3>
+      <div class="cz-row">
+        <div class="cz-label">Simulation band colour</div>
+        <div class="cz-color-group">
+          <input type="color" class="cz-color-input" id="czMcBand">
+          <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czMcBandHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="5585E3" aria-label="Monte Carlo band colour hex code"></label>
+        </div>
+      </div>
+      <div class="cz-note">Colours the Backtest Lab's Monte Carlo luck envelope (the shaded 5–95% / 25–75% bands) independent of the accent colour. The median line stays gold.</div>
     </section>
 
   </div>
