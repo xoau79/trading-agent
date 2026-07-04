@@ -46,6 +46,7 @@ between adjacent slots, ≥ 3:1 contrast on `--surface`) — if you change one, 
 | `--accent` | `#5585E3` | The one brand accent: equity line, radar, links, selected chips, primary buttons |
 | `--gold` | `#BC8A32` | Second data series / backtest progress / Monte-Carlo median |
 | `--violet` | `#8377E0` | Third data series (rarely needed) |
+| `--mc-band` | `#5585E3` | Monte-Carlo luck envelope fill (the shaded 5–95% / 25–75% bands in `BandChart`) — user-customizable, isolated from `--accent` so it can diverge without recolouring the rest of the UI |
 | `--up` | `#27A874` | Profit **marks** (candles, bars, lines) |
 | `--down` | `#DE4E56` | Loss **marks** |
 | `--up-ink` / `--down-ink` | `#3DD68C` / `#F2646C` | Brighter steps reserved for P&L **text** at small sizes |
@@ -54,6 +55,24 @@ between adjacent slots, ≥ 3:1 contrast on `--surface`) — if you change one, 
 Rules: green always means profit/live, red always means loss/halted, amber always means waiting/degraded —
 never decorative. Text never wears a mark color: numbers use `--up-ink`/`--down-ink`, marks use
 `--up`/`--down`.
+
+### Glow
+
+`--glow` (0–2, Customize panel slider 0–200%) scales every accent-coloured glow effect. Each glow stacks
+three box-shadow layers off two shared radius tokens — `--glow-near` (tight, brightest — reads as light at
+the object's edge/outline), `--glow-mid` (short spread), `--glow-far` (soft, wide — the radiate-outward
+falloff) — so intensity looks like it emanates from the source rather than a flat blur. Alpha (not radius)
+carries the 0% = off behaviour: every layer's `color-mix()` percentage is `<base>% * var(--glow)`, so it's
+fully transparent at `--glow:0` regardless of the radius tokens' floors. Elements using this recipe:
+`.brand-mark`, `.card-title .accent-tick`, `.radar .core`, `.btn-primary`, `.streak-ring .halo`. Reuse the
+three-layer pattern for new glow — never a single flat `box-shadow`.
+
+### Colour hex entry
+
+Every Customize colour swatch (`.cz-color-group`) pairs the native `<input type="color">` with a `.cz-hex`
+text field — type a bare 6-character hex code (no `#`) to jump straight to that colour; it applies live
+once 6 valid hex digits are present and reverts to the current value on blur otherwise. `customize.js`'s
+`bindHex()` helper wires this — reuse it for any new colour control instead of a bare `<input type="color">`.
 
 ## Typography
 

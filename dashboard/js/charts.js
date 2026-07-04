@@ -21,6 +21,7 @@
       ink3: v("--ink-3", "#5E6B80"),
       accent: v("--accent", "#5585E3"),
       gold: v("--gold", "#BC8A32"),
+      mcBand: v("--mc-band", "#5585E3"),
       violet: v("--violet", "#8377E0"),
       up: v("--up", "#27A874"),
       down: v("--down", "#DE4E56"),
@@ -762,7 +763,7 @@
         top.forEach((v, i) => { i ? ctx.lineTo(xOf(i), yOf(v)) : ctx.moveTo(xOf(i), yOf(v)); });
         for (let i = n - 1; i >= 0; i--) ctx.lineTo(xOf(i), yOf(bot[i]));
         ctx.closePath();
-        ctx.fillStyle = withAlpha(T.accent, alpha); ctx.fill();
+        ctx.fillStyle = withAlpha(T.mcBand, alpha); ctx.fill();
       };
       band(b.p95, b.p5, 0.08);
       band(b.p75, b.p25, 0.16);

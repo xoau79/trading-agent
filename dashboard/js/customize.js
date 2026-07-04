@@ -15,6 +15,7 @@
     bgColorGroup: $("czBgColorGroup"),
     bgImageGroup: $("czBgImageGroup"),
     bg: $("czBg"),
+    bgHex: $("czBgHex"),
     wallpaperThumb: $("czWallpaperThumb"),
     wallpaperFile: $("czWallpaperFile"),
     wallpaperClear: $("czWallpaperClear"),
@@ -28,20 +29,66 @@
     glassOpacity: $("czGlassOpacity"),
     glassOpacityVal: $("czGlassOpacityVal"),
     accent: $("czAccent"),
+    accentHex: $("czAccentHex"),
     glow: $("czGlow"),
     glowVal: $("czGlowVal"),
     profit: $("czProfit"),
+    profitHex: $("czProfitHex"),
     loss: $("czLoss"),
+    lossHex: $("czLossHex"),
+    mcBand: $("czMcBand"),
+    mcBandHex: $("czMcBandHex"),
   };
 
   if (!els.btn || !window.Theme) return;
 
+  /* -------------------------------- hex code entry ------------------------ */
+  // Lets you find a colour by typing its 6-character hex code (e.g. "e5bddf" for
+  // orchid) into the field next to a swatch — no "#" required. Applies as soon as
+  // 6 valid hex digits are present; reverts to the current colour otherwise.
+  function hexOf(color) { return (color || "").replace("#", "").toUpperCase(); }
+  function bindHex(hexInput, colorInput, apply) {
+    if (!hexInput || !colorInput) return;
+    hexInput.addEventListener("input", () => {
+      const clean = hexInput.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6).toUpperCase();
+      if (hexInput.value !== clean) hexInput.value = clean;
+      hexInput.classList.remove("invalid");
+      if (clean.length === 6) {
+        const hex = "#" + clean;
+        colorInput.value = hex;
+        apply(hex);
+      }
+    });
+    hexInput.addEventListener("blur", () => {
+      const incomplete = hexInput.value.length > 0 && hexInput.value.length !== 6;
+      hexInput.value = hexOf(colorInput.value);
+      if (incomplete) {
+        hexInput.classList.add("invalid");
+        setTimeout(() => hexInput.classList.remove("invalid"), 900);
+      }
+    });
+    hexInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") hexInput.blur();
+    });
+  }
+  bindHex(els.bgHex, els.bg, (hex) => window.Theme.set({ bg: hex }));
+  bindHex(els.accentHex, els.accent, (hex) => window.Theme.set({ accent: hex }));
+  bindHex(els.profitHex, els.profit, (hex) => window.Theme.set({ profit: hex }));
+  bindHex(els.lossHex, els.loss, (hex) => window.Theme.set({ loss: hex }));
+  bindHex(els.mcBandHex, els.mcBand, (hex) => window.Theme.set({ mcBand: hex }));
+
   function syncUI() {
     const s = window.Theme.get();
     els.bg.value = s.bg;
+    els.bgHex.value = hexOf(s.bg);
     els.accent.value = s.accent;
+    els.accentHex.value = hexOf(s.accent);
     els.profit.value = s.profit;
+    els.profitHex.value = hexOf(s.profit);
     els.loss.value = s.loss;
+    els.lossHex.value = hexOf(s.loss);
+    els.mcBand.value = s.mcBand;
+    els.mcBandHex.value = hexOf(s.mcBand);
 
     els.wallpaperBlur.value = s.wallpaperBlur;
     els.wallpaperBlurVal.textContent = s.wallpaperBlur + "px";
@@ -112,7 +159,10 @@
     syncUI();
   });
 
-  els.bg.addEventListener("input", () => window.Theme.set({ bg: els.bg.value }));
+  els.bg.addEventListener("input", () => {
+    window.Theme.set({ bg: els.bg.value });
+    els.bgHex.value = hexOf(els.bg.value);
+  });
 
   /* -------------------------------- wallpaper upload ---------------------- */
   function downscaleImage(file) {
@@ -185,9 +235,22 @@
     els.glowVal.textContent = els.glow.value + "%";
     window.Theme.set({ glow: Number(els.glow.value) });
   });
-  els.accent.addEventListener("input", () => window.Theme.set({ accent: els.accent.value }));
-  els.profit.addEventListener("input", () => window.Theme.set({ profit: els.profit.value }));
-  els.loss.addEventListener("input", () => window.Theme.set({ loss: els.loss.value }));
+  els.accent.addEventListener("input", () => {
+    window.Theme.set({ accent: els.accent.value });
+    els.accentHex.value = hexOf(els.accent.value);
+  });
+  els.profit.addEventListener("input", () => {
+    window.Theme.set({ profit: els.profit.value });
+    els.profitHex.value = hexOf(els.profit.value);
+  });
+  els.loss.addEventListener("input", () => {
+    window.Theme.set({ loss: els.loss.value });
+    els.lossHex.value = hexOf(els.loss.value);
+  });
+  els.mcBand.addEventListener("input", () => {
+    window.Theme.set({ mcBand: els.mcBand.value });
+    els.mcBandHex.value = hexOf(els.mcBand.value);
+  });
 
   els.reset.addEventListener("click", () => {
     hideError();

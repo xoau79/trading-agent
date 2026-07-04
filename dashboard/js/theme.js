@@ -19,6 +19,7 @@
     glow: 100,             // 0-200 (%)
     profit: "#3DD68C",
     loss: "#F2646C",
+    mcBand: "#5585E3",     // Monte Carlo simulation band fill, independent of accent
   };
 
   function load() {
@@ -49,6 +50,7 @@
     root.setProperty("--up-ink", settings.profit);
     root.setProperty("--down", settings.loss);
     root.setProperty("--down-ink", settings.loss);
+    root.setProperty("--mc-band", settings.mcBand);
     root.setProperty("--glow", String(settings.glow / 100));
     root.setProperty("--wallpaper-blur", settings.wallpaperBlur + "px");
     root.setProperty("--wallpaper-dim", String(settings.wallpaperDim / 100));
