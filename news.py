@@ -3,9 +3,15 @@
 Design principle: news failures must never crash the bot. The calendar
 blackout fails toward caution where it can (uses last cached copy), while
 TradingView/RSS are nice-to-haves that fail open with a logged warning.
+
+feedparser and tradingview_ta have no reliable built-in timeout (same failure
+mode data_feed/yahoo.py was hardened against on 2026-07-02: a stalled socket
+blocks the single-threaded trading loop forever, freezing dashboard/data.js
+along with it). Both run through _with_timeout below for the same reason.
 """
 import json
 import logging
+import threading
 import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -18,6 +24,33 @@ BASE = Path(__file__).resolve().parent
 CACHE_DIR = BASE / "journal"
 CAL_CACHE = CACHE_DIR / "ff_calendar_cache.json"
 CAL_REFRESH_HOURS = 6
+CALL_TIMEOUT_SEC = 15
+
+
+def _with_timeout(fn, timeout=CALL_TIMEOUT_SEC):
+    """Run fn() in a daemon thread and abandon it if it outruns timeout.
+
+    Mirrors data_feed/yahoo.py's _with_timeout: the thread is never force-killed
+    (Python can't do that), but being a daemon means an abandoned call can't
+    block the loop or process exit — it just gets treated as a failure.
+    """
+    result = {}
+
+    def target():
+        try:
+            result["value"] = fn()
+        except Exception as e:
+            result["error"] = e
+
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        log.warning("call timed out after %ss — abandoning", timeout)
+        return None
+    if "error" in result:
+        raise result["error"]
+    return result.get("value")
 
 
 class NewsDesk:
@@ -132,7 +165,9 @@ class NewsDesk:
             return
         try:
             import feedparser
-            feed = feedparser.parse(self.cfg["rss_url"])
+            feed = _with_timeout(lambda: feedparser.parse(self.cfg["rss_url"]))
+            if feed is None:
+                return
             self.headlines = [{"title": e.title,
                                "published": getattr(e, "published", "")}
                               for e in feed.entries[:12]]
@@ -156,7 +191,10 @@ def get_tv_rating(asset_cfg):
         h = TA_Handler(symbol=tv["symbol"], exchange=tv["exchange"],
                        screener=tv["screener"],
                        interval=Interval.INTERVAL_15_MINUTES)
-        return h.get_analysis().summary["RECOMMENDATION"]
+        analysis = _with_timeout(h.get_analysis)
+        if analysis is None:
+            raise TimeoutError("tradingview call timed out")
+        return analysis.summary["RECOMMENDATION"]
     except Exception as e:
         log.warning("tradingview rating failed for %s: %s",
                     asset_cfg.get("name", "?"), e)
