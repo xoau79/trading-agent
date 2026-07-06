@@ -91,6 +91,14 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):  # quiet the per-request console spam
         pass
 
+    def end_headers(self):
+        # This dashboard is edited and reloaded constantly during local dev;
+        # none of its assets are content-hashed, so a browser cache serving a
+        # stale dashboard.html/app.css/components.js after a code change is a
+        # real (and confusing) failure mode. Disable caching everywhere.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
         self.send_response(code)

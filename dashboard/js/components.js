@@ -731,7 +731,13 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (!r.ok) { if (row) row.style.pointerEvents = ""; return; }
+      let j = {};
+      try { j = await r.json(); } catch (parseErr) {}
+      if (!r.ok) {
+        if (row) row.style.pointerEvents = "";
+        alert(j.error || `Couldn't delete that run (server said ${r.status}).`);
+        return;
+      }
       if (S.lab.lastResult && S.lab.lastResult.id === id) {
         S.lab.lastResult = null;
         const results = $("btResults");
@@ -740,6 +746,7 @@
       loadBtHistory();
     } catch (err) {
       if (row) row.style.pointerEvents = "";
+      alert("Couldn't reach the dashboard server.\nOpen the dashboard via http://localhost:8765 (the TradingAgent-Dashboard task must be running).");
     }
   }
 
