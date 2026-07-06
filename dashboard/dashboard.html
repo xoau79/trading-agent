@@ -72,12 +72,12 @@
   <section class="card reveal span-6" id="suggest" aria-label="Suggestions and refinements"></section>
   <section class="card reveal span-6" id="intel" aria-label="News and headlines"></section>
 
-  <!-- Row: backtest lab -->
-  <section class="card reveal span-12" id="lab" aria-label="Backtest lab"></section>
-
   <!-- Row: archive + lessons -->
   <section class="card reveal span-8" id="archive" aria-label="Trade archive"></section>
   <section class="card reveal span-4" id="lessons" aria-label="Lessons learned"></section>
+
+  <!-- Row: backtest lab -->
+  <section class="card reveal span-12" id="lab" aria-label="Backtest lab"></section>
 </main>
 
 <footer class="footer" id="footer"></footer>
@@ -151,6 +151,18 @@
         <input type="range" class="cz-range" id="czGlow" min="0" max="200" step="5">
         <div class="cz-sub">Brightest at the edge of each element, radiating outward — 0% turns it off, 200% is the most intense.</div>
       </div>
+    </section>
+
+    <section class="cz-section">
+      <h3>Text</h3>
+      <div class="cz-row">
+        <div class="cz-label">Text colour</div>
+        <div class="cz-color-group">
+          <input type="color" class="cz-color-input" id="czText">
+          <label class="cz-hex"><span>#</span><input type="text" class="cz-hex-input" id="czTextHex" maxlength="6" spellcheck="false" autocomplete="off" placeholder="EAF0F9" aria-label="Text colour hex code"></label>
+        </div>
+      </div>
+      <div class="cz-note">Applies to every neutral label and value. Secondary and dimmed/inactive text automatically shade darker from this colour so the hierarchy stays readable. Profit and loss figures keep their own colours below.</div>
     </section>
 
     <section class="cz-section">

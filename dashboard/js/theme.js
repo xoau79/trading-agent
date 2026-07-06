@@ -17,10 +17,32 @@
     glassOpacity: 100,     // 40-100 (%)
     accent: "#5585E3",
     glow: 100,             // 0-200 (%)
+    text: "#EAF0F9",       // base neutral text colour (--ink)
     profit: "#3DD68C",
     loss: "#F2646C",
     mcBand: "#5585E3",     // Monte Carlo simulation band fill, independent of accent
   };
+
+  /* -------------------------- neutral text shading ------------------------
+     --ink-2/--ink-3 (secondary / dimmed text) shade from the chosen text
+     colour toward the background, same idea as the --surface-N ramp. They
+     must land on :root as flat hex (not a color-mix() chain) because
+     charts.js reads them back via getComputedStyle to hex-parse for canvas
+     — a custom property holding an unresolved color-mix() string would
+     break that parsing. */
+  function hexToRgb(hex) {
+    const h = (hex || "").replace("#", "").trim();
+    const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  function rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16).padStart(2, "0")).join("").toUpperCase();
+  }
+  function mix(hexA, hexB, weightA) {
+    const a = hexToRgb(hexA), b = hexToRgb(hexB), wb = 1 - weightA;
+    return rgbToHex(a.r * weightA + b.r * wb, a.g * weightA + b.g * wb, a.b * weightA + b.b * wb);
+  }
 
   function load() {
     try {
@@ -46,6 +68,9 @@
     const root = document.documentElement.style;
     root.setProperty("--bg", settings.bg);
     root.setProperty("--accent", settings.accent);
+    root.setProperty("--ink", settings.text);
+    root.setProperty("--ink-2", mix(settings.text, settings.bg, 0.70));
+    root.setProperty("--ink-3", mix(settings.text, settings.bg, 0.43));
     root.setProperty("--up", settings.profit);
     root.setProperty("--up-ink", settings.profit);
     root.setProperty("--down", settings.loss);

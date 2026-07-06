@@ -32,6 +32,8 @@
     accentHex: $("czAccentHex"),
     glow: $("czGlow"),
     glowVal: $("czGlowVal"),
+    text: $("czText"),
+    textHex: $("czTextHex"),
     profit: $("czProfit"),
     profitHex: $("czProfitHex"),
     loss: $("czLoss"),
@@ -73,6 +75,7 @@
   }
   bindHex(els.bgHex, els.bg, (hex) => window.Theme.set({ bg: hex }));
   bindHex(els.accentHex, els.accent, (hex) => window.Theme.set({ accent: hex }));
+  bindHex(els.textHex, els.text, (hex) => window.Theme.set({ text: hex }));
   bindHex(els.profitHex, els.profit, (hex) => window.Theme.set({ profit: hex }));
   bindHex(els.lossHex, els.loss, (hex) => window.Theme.set({ loss: hex }));
   bindHex(els.mcBandHex, els.mcBand, (hex) => window.Theme.set({ mcBand: hex }));
@@ -83,6 +86,8 @@
     els.bgHex.value = hexOf(s.bg);
     els.accent.value = s.accent;
     els.accentHex.value = hexOf(s.accent);
+    els.text.value = s.text;
+    els.textHex.value = hexOf(s.text);
     els.profit.value = s.profit;
     els.profitHex.value = hexOf(s.profit);
     els.loss.value = s.loss;
@@ -238,6 +243,10 @@
   els.accent.addEventListener("input", () => {
     window.Theme.set({ accent: els.accent.value });
     els.accentHex.value = hexOf(els.accent.value);
+  });
+  els.text.addEventListener("input", () => {
+    window.Theme.set({ text: els.text.value });
+    els.textHex.value = hexOf(els.text.value);
   });
   els.profit.addEventListener("input", () => {
     window.Theme.set({ profit: els.profit.value });
