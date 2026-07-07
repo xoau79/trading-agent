@@ -4,7 +4,15 @@ feedparser>=6.0
 tradingview-ta>=3.3
 python-dotenv>=1.2
 
+# cTrader (Spotware Open API) live/demo broker connectivity -- a small JSON-over-WebSocket
+# client (see broker/ctrader/transport.py's docstring for why not the official protobuf/
+# Twisted package). Pure Python, installs the same on Windows/Linux/Mac.
+websocket-client>=1.8
+
 # Phase 2 (broker connectivity) — install when you're ready to connect a live account.
 # MetaTrader5 only installs on Windows with an MT5 terminal present.
 # MetaTrader5>=5.0.45 ; sys_platform == "win32"
 # ib_insync>=0.9.86
+
+# Dev/test only -- not needed to run the bot.
+pytest>=8.0

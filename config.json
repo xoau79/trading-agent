@@ -1,8 +1,25 @@
 {
   "broker": {
     "provider": "paper",
-    "provider_options": ["paper", "mt5", "ibkr"],
-    "provider_note": "paper is the only one exercised against live trading today. Switching to mt5/ibkr requires broker credentials in .env and per-asset symbol mappings below -- see broker/README.md before switching."
+    "provider_options": ["paper", "mt5", "ctrader", "ibkr"],
+    "provider_note": "paper is the default, safe choice. Switching to mt5/ctrader requires broker credentials in .env and per-asset symbol mappings below -- see broker/README.md and docs/ctrader_setup.md before switching. ibkr is still a stub.",
+    "ctrader": {
+      "host_demo": "demo.ctraderapi.com",
+      "host_live": "live.ctraderapi.com",
+      "port": 5036,
+      "account_id_env": "CTRADER_ACCOUNT_ID",
+      "note": "any cTrader account (IC Markets or a prop-firm cTrader account) plugs in by putting its ctidTraderAccountId in .env's CTRADER_ACCOUNT_ID -- see ops/ctrader_auth.py."
+    }
+  },
+  "live_trading": {
+    "enabled": false,
+    "note": "This flag alone is NOT enough to trade a live (real-money) account. broker/live.py's safety latch also requires .env's LIVE_TRADING_CONFIRM to equal the exact account id being connected to. Demo accounts trade normally with enabled=false. See docs/ctrader_setup.md's go-live checklist.",
+    "order_label": "trading-agent",
+    "max_units_per_asset": {"GOLD": 50, "NQ": 20, "ES": 20},
+    "min_stop_distance_pct": 0.03,
+    "max_stop_distance_pct": 5.0,
+    "max_total_drawdown_pct": 10.0,
+    "on_unmanaged_positions": "warn"
   },
   "account": {
     "starting_balance": 10000.0
@@ -90,7 +107,9 @@
       "yahoo": "GC=F",
       "twelvedata": "XAU/USD",
       "mt5": null,
-      "mt5_note": "fill in once IC Markets is connected -- check Market Watch, likely 'XAUUSD' or similar",
+      "mt5_note": "fill in once IC Markets MT5 is connected -- check Market Watch, likely 'XAUUSD' or similar",
+      "ctrader": null,
+      "ctrader_note": "fill in once IC Markets cTrader is connected -- likely 'XAUUSD'; verify with `python ops/ctrader_smoke_test.py --symbols` against your own account, do not trust this guess",
       "tv_rating": {"symbol": "GOLD", "exchange": "TVC", "screener": "cfd"},
       "tv_widget_symbol": "OANDA:XAUUSD"
     },
@@ -98,7 +117,9 @@
       "name": "Nasdaq 100 (NQ)",
       "yahoo": "NQ=F",
       "mt5": null,
-      "mt5_note": "fill in once IC Markets is connected -- likely a 'NAS100'-style index CFD, not a literal futures contract",
+      "mt5_note": "fill in once IC Markets MT5 is connected -- likely a 'NAS100'-style index CFD, not a literal futures contract",
+      "ctrader": null,
+      "ctrader_note": "fill in once IC Markets cTrader is connected -- likely 'USTEC'; verify with `python ops/ctrader_smoke_test.py --symbols` against your own account, do not trust this guess",
       "tv_rating": {"symbol": "QQQ", "exchange": "NASDAQ", "screener": "america"},
       "tv_widget_symbol": "NASDAQ:QQQ"
     },
@@ -106,7 +127,9 @@
       "name": "S&P 500 (ES)",
       "yahoo": "ES=F",
       "mt5": null,
-      "mt5_note": "fill in once IC Markets is connected -- likely a 'US500'-style index CFD, not a literal futures contract",
+      "mt5_note": "fill in once IC Markets MT5 is connected -- likely a 'US500'-style index CFD, not a literal futures contract",
+      "ctrader": null,
+      "ctrader_note": "fill in once IC Markets cTrader is connected -- likely 'US500'; verify with `python ops/ctrader_smoke_test.py --symbols` against your own account, do not trust this guess",
       "tv_rating": {"symbol": "SPY", "exchange": "AMEX", "screener": "america"},
       "tv_widget_symbol": "AMEX:SPY"
     }
