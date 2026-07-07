@@ -16,6 +16,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import agent as agent_mod
+import broker as broker_pkg
 import data_feed
 import journal
 from agent import TradingAgent
@@ -24,18 +25,58 @@ from broker.paper import PaperBroker
 from news import NewsDesk, get_tv_rating, tv_allows
 from strategies import get_strategy
 
-# NOTE: the trading Engine below is still written directly against PaperBroker's specific
-# state-dict interface (self.broker.state[...], can_open(), etc.), not broker/base.py's
-# BrokerBase methods. broker.create_broker(cfg) exists and correctly builds an MT5Broker or
-# IBKRBroker from config.json's "broker.provider", but plugging one of those into this Engine
-# is separate follow-up work -- flipping the provider switch today would not (yet) change
-# what the live loop does. See docs/ARCHITECTURE.md.
+# The Engine below is written against a broker's state-dict interface (self.broker.state[...],
+# can_open(), open_position(), update_position(), close_position(), flatten_all()) rather than
+# broker/base.py's narrower BrokerBase methods directly. broker.create_broker(cfg) builds
+# whichever broker config.json's "broker.provider" names; for "paper" that's PaperBroker
+# itself, for "mt5"/"ctrader" it's broker/live.py's LiveBroker facade wrapping the real
+# adapter -- both present the exact same surface Engine already expects. See
+# docs/ARCHITECTURE.md and broker/README.md.
 
 BASE = Path(__file__).resolve().parent
 LOOP_SECONDS = 45
 MAX_CONSECUTIVE_ERRORS = 10
+HALT_FLAG = BASE / "halt.flag"  # dashboard kill switch -- see dashboard_server.py's /api/halt
 
 log = logging.getLogger("bot")
+
+
+def halt_requested():
+    return HALT_FLAG.exists()
+
+
+def fetch_bars(cfg, broker, asset, now_utc):
+    """Bars for one asset, live-loop style. When a live broker is connected (provider !=
+    "paper"), prefer its own feed (data_feed/broker_feed.py) -- one connection, prices that
+    match what the broker will actually fill you at. Falls back to Yahoo/TwelveData if the
+    broker feed is missing or stale: a live position's stop/target executes server-side at the
+    broker regardless of what bars the bot itself is looking at, so a fallback here can only
+    affect entry timing and journaled excursions, never fills -- and standing down on stale
+    data while a position might be open is worse than trading on a secondary feed for a bit.
+
+    Returns (bars, source) where source is "yahoo"/"broker"/"fallback" (for the dashboard's
+    data_source field).
+    """
+    provider = cfg.get("broker", {}).get("provider", "paper")
+    if provider != "paper":
+        try:
+            from data_feed import broker_feed
+            bars = broker_feed.get_recent_bars(broker, asset)
+        except Exception as e:
+            log.warning("broker feed error for %s (%s) — falling back to Yahoo/TwelveData",
+                        asset, e)
+            bars = None
+        if bars is not None and not data_feed.is_stale(bars, now_utc):
+            return bars, "broker"
+        log.warning("broker feed missing/stale for %s — falling back to Yahoo/TwelveData", asset)
+        bars = data_feed.get_recent_bars(
+            cfg["assets"][asset]["yahoo"], now_utc=now_utc,
+            twelvedata_symbol=cfg["assets"][asset].get("twelvedata"))
+        return bars, "fallback"
+    bars = data_feed.get_recent_bars(
+        cfg["assets"][asset]["yahoo"], now_utc=now_utc,
+        twelvedata_symbol=cfg["assets"][asset].get("twelvedata"))
+    return bars, "yahoo"
 
 
 def load_cfg():
@@ -113,6 +154,7 @@ class Engine:
         self.last_price = {}
         self.session_trades = []
         self.status = "session starting"
+        self.data_source = "yahoo" if cfg.get("broker", {}).get("provider", "paper") == "paper" else "broker"
         self._halt_announced = False
         self._bench_announced = set()
         self._skip_noted = set()
@@ -322,11 +364,29 @@ def export(cfg, broker, status, snapshots, newsdesk, now_utc, replay=False, agen
 
 def recover_stale_positions(cfg, broker, agent=None):
     """Crash recovery: the strategy rule is 'flat by session close, no exceptions,' so any
-    open position still sitting in state.json when a new bot.py process starts can only mean
-    the previous run died without reaching end_session() (a hang, a crash, a killed process —
-    see the 2026-07-02 postmortem in docs/ARCHITECTURE.md). Flatten immediately, before doing
-    anything else, using a fresh price.
+    open position still sitting in the broker's state when a new bot.py process starts can
+    only mean the previous run died without reaching end_session() (a hang, a crash, a killed
+    process — see the 2026-07-02 postmortem in docs/ARCHITECTURE.md). Flatten immediately,
+    before doing anything else.
+
+    A live broker (LiveBroker facade, broker/live.py) knows how to reconcile against its own
+    truth -- a position it's still holding may not need "flattening" at all if it already
+    closed server-side (stop/target hit while the bot was down); it defers to
+    LiveBroker.reconcile() instead of guessing from a stale local price. Paper trading (no
+    `reconcile` method) keeps its original Yahoo-priced flatten exactly as before.
     """
+    if hasattr(broker, "reconcile"):
+        now = utcnow()
+        closed = broker.reconcile(now)
+        for t in closed:
+            journal.record_trade(t, cfg)
+        if agent and closed:
+            names = ", ".join(f"{t['asset']} {t['pnl']:+.2f} USD" for t in closed)
+            agent.say("halt", f"Startup reconciliation: {len(closed)} position(s) from a "
+                      f"previous run were resolved against the broker's own records "
+                      f"({names}).", discord=True, now=now)
+        return
+
     positions = broker.state.get("open_positions") or {}
     if not positions:
         return
@@ -372,7 +432,17 @@ def run_live(session_name):
         cfg = load_cfg()          # pick up the freshly applied overrides
         agent.cfg = cfg
         agent.tuning = cfg.get("tuning", {})
-    broker = PaperBroker(cfg)
+    broker = broker_pkg.create_broker(cfg)
+    try:
+        broker.connect()
+    except Exception as e:
+        provider = cfg.get("broker", {}).get("provider", "paper")
+        log.error("broker connection failed (provider=%s): %s", provider, e)
+        agent.say("halt", f"Could not connect to the broker ({provider}): {e}. Standing "
+                  "down — refusing to trade without a verified connection.", discord=True)
+        export(cfg, broker, f"broker connection failed ({provider}) — session aborted",
+               {}, newsdesk, utcnow(), agent=agent)
+        return
     recover_stale_positions(cfg, broker, agent=agent)
     broker.start_session(session_name, day_key)
     engine = Engine(cfg, broker, newsdesk, session_name, open_utc, close_utc,
@@ -404,21 +474,41 @@ def run_live(session_name):
 
     log.info("=== %s session live: %s -> %s UTC ===", session_name, open_utc, close_utc)
     errors, stale_strikes = 0, 0
+    manual_halt_prefix = "manual kill switch"
     while utcnow() < close_utc:
         loop_start = utcnow()
         try:
+            if halt_requested():
+                if not broker.state.get("halted_reason"):
+                    log.warning("kill switch: halt.flag present — flattening and halting")
+                    closed = broker.flatten_all(engine.last_price, "kill_switch", utcnow())
+                    for t in closed:
+                        journal.record_trade(t, cfg)
+                        engine.session_trades.append(t)
+                    broker.state["halted_reason"] = f"{manual_halt_prefix} (dashboard)"
+                    broker.save()
+                    agent.say("halt", "Kill switch pressed on the dashboard — flattened "
+                              "everything and halted. Clear it from the dashboard to "
+                              "resume.", discord=True)
+            elif (broker.state.get("halted_reason") or "").startswith(manual_halt_prefix):
+                broker.state["halted_reason"] = None
+                broker.save()
+                agent.say("info", "Kill switch cleared from the dashboard — resuming "
+                          "normal trading rules.", discord=True)
+
             newsdesk.refresh_calendar()
             newsdesk.refresh_headlines()
             cutoff = utcnow() - timedelta(seconds=60)
-            bars_by_asset, fresh = {}, False
+            bars_by_asset, fresh, data_source = {}, False, "yahoo"
             for asset in engine.assets:
-                bars = data_feed.get_recent_bars(
-                    cfg["assets"][asset]["yahoo"], now_utc=utcnow(),
-                    twelvedata_symbol=cfg["assets"][asset].get("twelvedata"))
+                bars, src = fetch_bars(cfg, broker, asset, utcnow())
+                if src != "yahoo":
+                    data_source = src
                 if bars is not None:
                     bars_by_asset[asset] = bars[bars.index <= cutoff]
                     if not data_feed.is_stale(bars, utcnow()):
                         fresh = True
+            engine.data_source = data_source
             if not fresh:
                 stale_strikes += 1
                 # ~30 min of patience: transient rate-limits shouldn't end a session
