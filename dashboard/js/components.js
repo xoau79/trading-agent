@@ -54,6 +54,16 @@
       ? `<button class="btn btn-wake" id="wakeBtn">⏰ Wake the agent</button>` : "";
     const wb = $("wakeBtn");
     if (wb) wb.onclick = () => wakeBot(wb);
+
+    const halt = $("haltSlot");
+    const provider = (D && D.broker && D.broker.provider) || "paper";
+    const haltArmed = !!(D && D.halt_flag);
+    const showHalt = provider !== "paper" || haltArmed;
+    halt.innerHTML = !showHalt ? "" : haltArmed
+      ? `<button class="btn btn-danger" id="haltBtn" data-mode="clear">✓ Clear halt</button>`
+      : `<button class="btn btn-danger" id="haltBtn" data-mode="halt">⛔ Flatten &amp; halt</button>`;
+    const hb = $("haltBtn");
+    if (hb) hb.onclick = () => haltBot(hb, hb.dataset.mode);
   }
 
   function tickClock() {
@@ -70,15 +80,37 @@
   function renderBanners(D, health) {
     const el = $("banners");
     const rows = [];
+    const broker = D.broker || {};
+    if (broker.environment === "live")
+      rows.push(`<div class="banner banner-live">🔴 LIVE ACCOUNT — real money is at risk (${U.esc(broker.provider || "")}${broker.account_id ? " · " + U.esc(String(broker.account_id)) : ""}). Use the kill switch above if anything looks wrong.</div>`);
     if ((D.bot_status || "").startsWith("REPLAY"))
       rows.push(`<div class="banner banner-replay">🔁 Showing replay data (test run on historical prices) — live data takes over at the next session.</div>`);
     if (D.halted_reason)
       rows.push(`<div class="banner banner-halt">⛔ ${U.esc(D.halted_reason)}</div>`);
+    else if (D.halt_flag)
+      rows.push(`<div class="banner banner-warn">⏳ Kill switch armed — waiting for the bot's next loop to flatten and halt (up to ~45s).</div>`);
+    if (broker.provider && broker.provider !== "paper" && broker.connected === false)
+      rows.push(`<div class="banner banner-warn">⚠ Lost connection to the broker (${U.esc(broker.provider)}) — the bot will keep retrying automatically.</div>`);
+    if (broker.data_source === "fallback")
+      rows.push(`<div class="banner banner-warn">⚠ The broker's price feed is unavailable — trading on a fallback data source for market timing (live positions still execute at the broker itself).</div>`);
+    if (broker.last_order_error)
+      rows.push(`<div class="banner banner-warn">⚠ Last order was refused: ${U.esc(broker.last_order_error)}</div>`);
+    (broker.unmanaged_warnings || []).forEach((w) =>
+      rows.push(`<div class="banner banner-warn">⚠ ${U.esc(w)}</div>`));
     if (health.asleep)
       rows.push(`<div class="banner banner-asleep"><span>💤 The agent stood down (data feed dropped) but <b>${U.esc(health.liveLabel || "the session")}</b> is still live — wake it to resume trading.</span></div>`);
     if (health.holiday)
       rows.push(`<div class="banner banner-holiday">🏖 ${U.esc(D.bot_status)} — standing down for a market holiday; trading resumes next session.</div>`);
     el.innerHTML = rows.join("");
+  }
+
+  function brandSubText(D) {
+    if ((D.bot_status || "").startsWith("REPLAY")) return "replay data";
+    const broker = D.broker || {};
+    if (!broker.provider || broker.provider === "paper") return "paper account";
+    const name = broker.provider === "ctrader" ? "cTrader" : broker.provider === "mt5" ? "MT5" : broker.provider;
+    const acct = broker.account_id ? ` · ${broker.account_id}` : "";
+    return broker.environment === "live" ? `${name} · LIVE${acct}` : `${name} · demo${acct}`;
   }
 
   /* ================================ hero ================================ */
@@ -142,6 +174,11 @@
       M.allTime >= 0 ? T.up : T.down);
 
     $("heroStatus").innerHTML = `${health.pill}<span class="status-text" title="${U.esc(D.bot_status)}">${U.esc(D.bot_status || "")}</span>`;
+
+    const tag = $("heroTag");
+    const env = (D.broker && D.broker.environment) || "paper";
+    tag.className = "pill " + (env === "live" ? "pill-halt" : env === "demo" ? "pill-warn" : "pill-idle");
+    tag.textContent = env === "live" ? "LIVE" : env === "demo" ? "DEMO" : "PAPER";
   }
 
   /* ============================= positions ============================== */
@@ -566,6 +603,32 @@
     }
   }
 
+  async function haltBot(btn, mode) {
+    if (mode === "halt" && !confirm(
+      "This flattens every open position and halts trading until you clear it from here. "
+      + "Continue?")) return;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = mode === "halt" ? "Halting…" : "Clearing…";
+    try {
+      const r = await fetch("/api/halt", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: mode }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        btn.textContent = "✓ " + (j.note || "Done");
+        setTimeout(() => window.App && window.App.reload(), 3000);
+      } else {
+        btn.disabled = false; btn.textContent = original;
+        alert(j.error || "Could not update the kill switch.");
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = original;
+      alert("Couldn't reach the dashboard server.\nThe TradingAgent-Dashboard task must be running.");
+    }
+  }
+
   /* ================================ intel =============================== */
   function renderIntel(D) {
     const el = $("intel");
@@ -925,7 +988,7 @@
     const M = U.derive(D);
     const health = healthOf(D);
     document.title = `${U.money(D.balance)} · Trading Agent`;
-    $("brandSub").textContent = (D.bot_status || "").startsWith("REPLAY") ? "replay data" : "paper account";
+    $("brandSub").textContent = brandSubText(D);
     renderTopbar(D, M, health);
     renderBanners(D, health);
     renderHero(D, M, health);

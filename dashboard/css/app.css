@@ -202,6 +202,10 @@ body.has-wallpaper .backdrop { opacity: 0.45; }
 .banner-asleep  { border-color: rgba(188, 138, 50, 0.5); background: rgba(188, 138, 50, 0.09); color: var(--warn-ink); }
 .banner-replay  { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--accent-bright); }
 .banner-holiday { color: var(--ink-2); }
+/* Real money is connected -- same --down family as banner-halt (this repo's one "pay
+   attention" color), but persistent rather than transient, and never auto-dismissed. */
+.banner-live    { border-color: color-mix(in srgb, var(--down) 65%, transparent); background: color-mix(in srgb, var(--down) 13%, transparent); color: var(--down-ink); font-weight: 700; }
+.banner-warn    { border-color: rgba(188, 138, 50, 0.5); background: rgba(188, 138, 50, 0.09); color: var(--warn-ink); }
 
 /* ------------------------------------------------------------------ grid */
 .grid {
@@ -666,6 +670,8 @@ body.has-wallpaper .backdrop { opacity: 0.45; }
 .btn-reject:hover { background: color-mix(in srgb, var(--down) 12%, transparent); }
 .btn-wake { background: rgba(188, 138, 50, 0.16); border-color: rgba(188, 138, 50, 0.55); color: var(--warn-ink); }
 .btn-wake:hover { background: rgba(188, 138, 50, 0.28); }
+.btn-danger { background: color-mix(in srgb, var(--down) 18%, transparent); border-color: color-mix(in srgb, var(--down) 60%, transparent); color: var(--down-ink); font-weight: 700; }
+.btn-danger:hover { background: color-mix(in srgb, var(--down) 30%, transparent); }
 .btn-customize { display: inline-flex; align-items: center; gap: 7px; }
 .btn-customize svg { display: block; }
 

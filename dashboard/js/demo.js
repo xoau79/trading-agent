@@ -240,6 +240,8 @@
       },
       effective_strategy: { opening_range_minutes: 15, target_r_multiple: 2.0 },
       backtest_assets: {},
+      broker: { provider: "paper", environment: "paper", connected: true },
+      halt_flag: false,
     };
   };
 })();

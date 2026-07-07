@@ -253,7 +253,8 @@ def _derive_bot_state(bot_status):
 
 
 def export_dashboard(cfg, broker_state, bot_status, engine_snapshots, newsdesk, now_utc,
-                     agent=None, holiday_until=None, candles=None):
+                     agent=None, holiday_until=None, candles=None, broker_meta=None,
+                     halt_flag=False):
     trades = _load(TRADES_FILE, [])
     lessons = _load(LESSONS_JSON, [])
     starting = cfg["account"]["starting_balance"]
@@ -304,5 +305,11 @@ def export_dashboard(cfg, broker_state, bot_status, engine_snapshots, newsdesk, 
         "effective_strategy": cfg["strategy"],
         "backtest_assets": {k: {"name": v["name"], "sector": v["sector"]}
                             for k, v in cfg.get("backtest_assets", {}).items()},
+        # broker/account status -- paper trading keeps today's "paper account" look (see
+        # dashboard/js/components.js); a live broker (broker/live.py's status_payload())
+        # surfaces provider/account/demo-or-LIVE/connection state here instead.
+        "broker": broker_meta or {"provider": cfg.get("broker", {}).get("provider", "paper"),
+                                  "environment": "paper", "connected": True},
+        "halt_flag": bool(halt_flag),
     }
     _atomic_write(DATA_JS, "window.DATA = " + json.dumps(data, indent=1, default=str) + ";\n")

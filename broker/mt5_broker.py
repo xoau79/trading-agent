@@ -18,20 +18,33 @@ INERT BY DEFAULT. Nothing here runs unless you deliberately:
 
 No credentials were ever requested or pasted into chat to build this -- fill .env yourself.
 
-Order placement (place_order / close_position) is deliberately NotImplementedError: read-only
-methods (pricing, positions, account info) are safe to leave wired up, but nothing that can
-move money should exist un-tested. Wire those up deliberately, test on a demo account first,
-before ever pointing this at a live account.
+Order placement now IS implemented (order_send() with attached SL/TP, volume floored to the
+symbol's lot step -- see place_order()/close_position()), wrapped by broker/live.py's
+LiveBroker facade exactly like broker/ctrader/. It cannot be integration-tested in this
+repo's Linux sandbox (the MetaTrader5 package is Windows-only and needs a running terminal) --
+tests/test_mt5_broker.py exercises it against a fake `MetaTrader5` module injected via
+sys.modules; run ops/mt5_smoke_test.py on your actual Windows machine (read-only) before ever
+flipping config.json's provider to "mt5", and ops/live_order_test.py (a minimum-size demo
+order, shared with the cTrader adapter) before trusting it further.
+
+Positions are tagged with a fixed `magic` number (see _magic()) instead of cTrader's string
+label -- MT5 has no free-text label field on a position, magic numbers are the standard
+MQL5/MT5 idiom for "which EA/bot owns this," and LiveBroker's reconciliation filters on it the
+same way it filters cTrader positions by order label: this bot never touches a position that
+isn't its own.
 """
 import logging
+import math
 import os
-from datetime import timezone
 
 import pandas as pd
 
 from .base import BrokerBase
 
 log = logging.getLogger("broker.mt5")
+
+DEFAULT_MAGIC = 20260707  # arbitrary but fixed -- identifies positions this bot opened
+DEFAULT_DEVIATION_POINTS = 20  # max acceptable slippage in points on a market order
 
 
 class MT5Broker(BrokerBase):
@@ -61,6 +74,11 @@ class MT5Broker(BrokerBase):
         log.info("connected to MT5 (server=%s, login=%s)", server, login)
         return True
 
+    def is_live_account(self):
+        self._require_connection()
+        info = self._mt5.account_info()
+        return bool(info and info.trade_mode == self._mt5.ACCOUNT_TRADE_MODE_REAL)
+
     def _require_connection(self):
         if not self._connected:
             raise RuntimeError("MT5Broker.connect() must succeed before any other call.")
@@ -72,6 +90,15 @@ class MT5Broker(BrokerBase):
                 f"{asset} has no 'mt5' symbol mapped in config.json — check your IC Markets "
                 "terminal's Market Watch for the exact name and fill it in before trading it.")
         return symbol
+
+    def _asset_for_symbol(self, symbol):
+        for asset, acfg in self.cfg["assets"].items():
+            if acfg.get("mt5") == symbol:
+                return asset
+        return None
+
+    def _magic(self):
+        return self.cfg.get("live_trading", {}).get("mt5_magic", DEFAULT_MAGIC)
 
     def get_bars(self, asset, interval="1m", lookback_minutes=300):
         self._require_connection()
@@ -92,26 +119,136 @@ class MT5Broker(BrokerBase):
         tick = self._mt5.symbol_info_tick(self._symbol(asset))
         return float(tick.bid) if tick else None
 
+    # ----- volume conversion --------------------------------------------------------
+    def _contract_size(self, symbol):
+        info = self._mt5.symbol_info(symbol)
+        return (info.trade_contract_size if info and info.trade_contract_size else 1.0)
+
+    def units_to_lots(self, symbol, units):
+        """Engine units -> MT5 lots, floored to the symbol's volume_step and clamped to
+        [volume_min, volume_max]. Floors (never rounds up) so a rounding adjustment can only
+        reduce risk, never inflate it. Returns 0.0 if the sized units round down below the
+        symbol's minimum tradable lot size -- the caller must treat that as a refused order."""
+        info = self._mt5.symbol_info(symbol)
+        if info is None:
+            raise RuntimeError(f"no symbol_info for {symbol} — is it in Market Watch?")
+        contract_size = info.trade_contract_size or 1.0
+        step = info.volume_step or 0.01
+        lots = units / contract_size
+        lots = math.floor(lots / step + 1e-9) * step  # +epsilon guards against fp floor errors
+        lots = round(lots, 8)
+        if info.volume_min and lots < info.volume_min:
+            return 0.0
+        if info.volume_max and lots > info.volume_max:
+            lots = info.volume_max
+        return lots
+
+    def _filling_type(self, symbol):
+        """MT5's allowed order-filling modes are a bitmask on symbol_info().filling_mode;
+        RETURN is always accepted as the fallback regardless of that bitmask (confirmed via
+        MQL5's own filling-mode documentation) -- prefer IOC, then FOK, then RETURN."""
+        info = self._mt5.symbol_info(symbol)
+        mode = info.filling_mode if info else 0
+        if mode & self._mt5.SYMBOL_FILLING_IOC:
+            return self._mt5.ORDER_FILLING_IOC
+        if mode & self._mt5.SYMBOL_FILLING_FOK:
+            return self._mt5.ORDER_FILLING_FOK
+        return self._mt5.ORDER_FILLING_RETURN
+
+    # ----- orders ------------------------------------------------------------------
     def place_order(self, asset, direction, units, stop, target):
         self._require_connection()
-        raise NotImplementedError(
-            "Order placement is deliberately not implemented -- this adapter has never been "
-            "tested against a real account. Wire this up on purpose (see "
-            "mql5.com/en/docs/python_metatrader5's order_send() docs for the request format) "
-            "and test on a demo account first, before ever pointing it at a live account.")
+        symbol = self._symbol(asset)
+        lots = self.units_to_lots(symbol, units)
+        if lots <= 0:
+            raise ValueError(f"{asset}: sized units ({units}) round down to zero lots at "
+                             "this symbol's step/minimum — order refused, not silently resized.")
+        tick = self._mt5.symbol_info_tick(symbol)
+        if tick is None:
+            raise RuntimeError(f"no tick data for {symbol} — market may be closed")
+        order_type = (self._mt5.ORDER_TYPE_BUY if direction == "LONG"
+                     else self._mt5.ORDER_TYPE_SELL)
+        price = tick.ask if direction == "LONG" else tick.bid
+        request = {
+            "action": self._mt5.TRADE_ACTION_DEAL, "symbol": symbol, "volume": lots,
+            "type": order_type, "price": price, "sl": stop, "tp": target,
+            "deviation": DEFAULT_DEVIATION_POINTS, "magic": self._magic(),
+            "comment": "trading-agent", "type_time": self._mt5.ORDER_TIME_GTC,
+            "type_filling": self._filling_type(symbol),
+        }
+        result = self._mt5.order_send(request)
+        if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
+            code = result.retcode if result is not None else self._mt5.last_error()
+            raise RuntimeError(f"order_send failed for {asset} ({symbol}): retcode={code}")
+        filled_units = result.volume * self._contract_size(symbol)
+        pos = {
+            "asset": asset, "direction": direction, "entry_price": result.price,
+            "units": filled_units, "stop": stop, "target": target,
+            "position_id": result.order, "provider": "mt5",
+        }
+        log.info("OPEN %s %s %.4f units (mt5 order %s) @ %.5f stop %.5f target %.5f",
+                 direction, asset, filled_units, pos["position_id"], result.price, stop, target)
+        return pos
 
     def close_position(self, asset, reason, price=None, when=None):
         self._require_connection()
-        raise NotImplementedError("See place_order() -- same reasoning.")
+        symbol = self._symbol(asset)
+        positions = self._mt5.positions_get(symbol=symbol) or ()
+        ours = [p for p in positions if p.magic == self._magic()]
+        if not ours:
+            return None
+        pos = ours[0]
+        tick = self._mt5.symbol_info_tick(symbol)
+        if tick is None:
+            raise RuntimeError(f"no tick data for {symbol} — market may be closed")
+        close_type = (self._mt5.ORDER_TYPE_SELL if pos.type == self._mt5.ORDER_TYPE_BUY
+                     else self._mt5.ORDER_TYPE_BUY)
+        close_price = tick.bid if close_type == self._mt5.ORDER_TYPE_SELL else tick.ask
+        request = {
+            "action": self._mt5.TRADE_ACTION_DEAL, "symbol": symbol, "volume": pos.volume,
+            "type": close_type, "position": pos.ticket, "price": close_price,
+            "deviation": DEFAULT_DEVIATION_POINTS, "magic": self._magic(),
+            "comment": f"trading-agent close ({reason})"[:31],  # MT5 caps comment length
+            "type_time": self._mt5.ORDER_TIME_GTC, "type_filling": self._filling_type(symbol),
+        }
+        result = self._mt5.order_send(request)
+        if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
+            code = result.retcode if result is not None else self._mt5.last_error()
+            raise RuntimeError(f"close order_send failed for {asset} ({symbol}): retcode={code}")
+        direction = "LONG" if pos.type == self._mt5.ORDER_TYPE_BUY else "SHORT"
+        contract_size = self._contract_size(symbol)
+        trade = {
+            "asset": asset, "direction": direction, "entry_price": pos.price_open,
+            "units": pos.volume * contract_size, "stop": pos.sl, "target": pos.tp,
+            "position_id": pos.ticket, "provider": "mt5",
+            "exit_price": result.price, "exit_reason": reason,
+        }
+        log.info("CLOSE %s %s @ %.5f (%s)", direction, asset, result.price, reason)
+        return trade
 
     def get_positions(self):
         self._require_connection()
         positions = self._mt5.positions_get() or ()
-        return {p.symbol: p._asdict() for p in positions}
+        out = {}
+        for p in positions:
+            if p.magic != self._magic():
+                continue  # not ours -- never manage a position this bot didn't open
+            asset = self._asset_for_symbol(p.symbol)
+            if asset is None:
+                continue
+            out[asset] = {
+                "asset": asset,
+                "direction": "LONG" if p.type == self._mt5.ORDER_TYPE_BUY else "SHORT",
+                "entry_price": p.price_open, "units": p.volume * self._contract_size(p.symbol),
+                "stop": p.sl, "target": p.tp, "position_id": p.ticket, "provider": "mt5",
+            }
+        return out
 
     def get_account_info(self):
         self._require_connection()
         info = self._mt5.account_info()
         if info is None:
             return {}
-        return {"balance": info.balance, "equity": info.equity, "currency": info.currency}
+        return {"balance": info.balance, "equity": info.equity, "currency": info.currency,
+               "account_id": info.login,
+               "is_live": info.trade_mode == self._mt5.ACCOUNT_TRADE_MODE_REAL}

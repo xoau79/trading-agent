@@ -1,9 +1,11 @@
 # 🤖 Trading Agent
 
-A fully automatic, emotion-free trading system. Today it trades a **simulated $10,000 account** against
-**real live market prices** — no real money is at risk. It's built to grow into a live-broker-connected
-system without a rewrite: see `docs/ARCHITECTURE.md` for the broker-agnostic design and `strategies/` for
-the growing strategy library.
+A fully automatic, emotion-free trading system. By default it trades a **simulated $10,000 account**
+against **real live market prices** — no real money is at risk. It's also built to trade a real IC
+Markets account (or a prop-firm account) via **cTrader** or **MT5** — demo first, then live behind a
+deliberate confirmation latch. See `docs/ARCHITECTURE.md` for the broker-agnostic design,
+`docs/ctrader_setup.md` for the step-by-step path to a live account, and `strategies/` for the growing
+strategy library.
 
 ## Repo map
 
@@ -12,15 +14,16 @@ the growing strategy library.
 | `bot.py` | Main program: session timing, live loop, replay mode |
 | `agent.py` | The narrator/brain: feed, market reads, learning, refinements, Discord |
 | `strategies/` | The strategy library — see `strategies/README.md` |
-| `broker/` | Broker-agnostic trading interface (paper today, MT5/IBKR scaffolded) — see `broker/README.md` |
+| `broker/` | Broker-agnostic trading interface (paper, cTrader, MT5; IBKR scaffolded) — see `broker/README.md` |
 | `data_feed/` | Price data sources — see `data_feed/README.md` |
-| `news.py` | ForexFactory calendar (bank-holiday detection, news blackout, top-tier flatten), CNBC headlines, TradingView ratings |
+| `news.py` | ForexFactory calendar (bank-holiday detection, news blackout, top-tier flatten), CNBC headlines, TradingView ratings (signals only — see `docs/ctrader_setup.md`) |
 | `journal.py` | Trade archives, lessons, dashboard data |
-| `dashboard/` + `dashboard_server.py` | The dashboard at http://localhost:8765 — visual rules in `DESIGN.md` |
-| `ops/` | Smoke test, Task Scheduler setup — see `docs/ARCHITECTURE.md` |
-| `docs/` | Architecture notes and reference material (including IBKR API course notes in `docs/ibkr/`) |
-| `config.json` | Universal settings — risk %, trade caps, session times, news filters |
-| `.env` | Secrets (Discord webhook, broker credentials, API keys) — gitignored, copy from `.env.example` |
+| `dashboard/` + `dashboard_server.py` | The dashboard at http://localhost:8765 — broker/account status, kill switch, visual rules in `DESIGN.md` |
+| `ops/` | Smoke tests, cTrader auth, live order test, Task Scheduler setup — see `docs/ARCHITECTURE.md` |
+| `docs/` | Architecture notes, `docs/ctrader_setup.md` (going live), IBKR API course notes in `docs/ibkr/` |
+| `tests/` | `pytest` suite — no network required, run with `pytest` |
+| `config.json` | Universal settings — risk %, trade caps, session times, news filters, live-trading guardrails |
+| `.env` | Secrets (Discord webhook, broker credentials, API keys, live-trading confirmation) — gitignored, copy from `.env.example` |
 
 `CONTRIBUTING.md` has the branch/PR workflow rules — read it before making changes.
 
@@ -80,6 +83,11 @@ it running; it starts automatically when you log in). Balance, equity curve, win
 drawdown, what the bot is doing right now, every trade with its full reasoning (click a row), upcoming
 news, live charts. Refreshes every 60 seconds. Visual rules for any future changes: `DESIGN.md`.
 
+When a live or demo broker is connected, the header shows which one (**PAPER** / **DEMO** / **LIVE**,
+provider, account id) and a persistent red banner appears for a live account. A **⛔ Flatten & halt**
+button next to the wake button flattens every open position and halts trading — useful if anything
+looks wrong; clear it from the same spot once you're satisfied. See `docs/ctrader_setup.md`.
+
 ### 🧠 The agent
 
 The bot narrates everything it does into the **Agent feed** — what it's hunting, why it
@@ -129,13 +137,22 @@ python ops/smoke_test.py
 ```powershell
 pip install -r requirements.txt
 Copy-Item .env.example .env   # then fill in DISCORD_WEBHOOK_URL at minimum
+
+# Run the test suite (no network required)
+pytest
 ```
+
+Paper trading (the default) needs nothing further. To trade a real IC Markets account via cTrader or
+MT5 — demo first, always — follow `docs/ctrader_setup.md` end to end.
 
 ## Tuning
 
-Everything universal lives in `config.json` — trade caps, session times, news windows. Strategy-specific
-parameters live in each strategy's own folder. Change a number, save, and the next session uses it.
-To reset the account back to $10,000: delete `state.json`, `journal\trades.json` and `journal\lessons.json`.
+Everything universal lives in `config.json` — trade caps, session times, news windows, and (once you're
+past paper trading) the `live_trading` guardrails. Strategy-specific parameters live in each strategy's
+own folder. Change a number, save, and the next session uses it.
+To reset the account back to $10,000: delete `state.json`, `journal\trades.json` and `journal\lessons.json`
+(a live broker's own progress lives in `state_live_<provider>.json` instead — never shared with paper
+trading's `state.json`).
 
 Scheduled tasks: `TradingAgent-Asia` (10:30 AM), `TradingAgent-NY` (11:00 PM),
 `TradingAgent-Dashboard` (at logon).
