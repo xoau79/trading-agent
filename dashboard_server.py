@@ -28,6 +28,7 @@ SUGGESTIONS = BASE / "journal" / "suggestions.json"
 BACKTESTS_DIR = DASHBOARD / "backtests"
 STATUS = BACKTESTS_DIR / "status.json"
 DATA_JS = DASHBOARD / "data.js"
+HALT_FLAG = BASE / "halt.flag"  # bot.py's live loop watches this -- see bot.py's halt_requested()
 BT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 logging.basicConfig(
@@ -123,6 +124,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._delete_backtest(data)
         if self.path == "/api/wake":
             return self._wake(data)
+        if self.path == "/api/halt":
+            return self._halt(data)
         return self._json(404, {"error": "unknown endpoint"})
 
     def _decide(self, data):
@@ -229,6 +232,36 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(200, {"ok": True, "session": session,
                                 "note": f"Waking the bot for the {session} session — "
                                 "it should be live again within a minute."})
+
+
+    def _halt(self, data):
+        """Kill switch: writes/removes halt.flag, which bot.py's live loop checks every
+        iteration (see bot.py's halt_requested()). Flattens everything and halts trading
+        while the flag exists; clearing it resumes normal rules (a daily-loss halt still
+        persists per the existing rules -- this only ever clears the manual kill switch).
+        Purely a file write here — this process never talks to the broker directly, on
+        purpose, so the dashboard can only make things safer, never riskier.
+        """
+        action = data.get("action")
+        if action == "halt":
+            HALT_FLAG.parent.mkdir(parents=True, exist_ok=True)
+            payload = json.dumps({"requested_utc": datetime.now(timezone.utc).isoformat(),
+                                  "by": "dashboard"})
+            tmp = str(HALT_FLAG) + ".tmp"
+            Path(tmp).write_text(payload, encoding="utf-8")
+            Path(tmp).replace(HALT_FLAG)
+            log.warning("kill switch armed from the dashboard")
+            return self._json(200, {"ok": True, "halted": True,
+                                    "note": "Kill switch armed — the bot will flatten and "
+                                    "halt within its next loop iteration (up to ~45s)."})
+        if action == "clear":
+            HALT_FLAG.unlink(missing_ok=True)
+            log.info("kill switch cleared from the dashboard")
+            return self._json(200, {"ok": True, "halted": False,
+                                    "note": "Kill switch cleared — normal trading rules "
+                                    "resume (a daily-loss halt, if any, still stands until "
+                                    "tomorrow)."})
+        return self._json(400, {"error": "action must be 'halt' or 'clear'"})
 
 
 def main():

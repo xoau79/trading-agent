@@ -26,6 +26,12 @@ The dashboard is a static app served by `dashboard_server.py` — no build step,
 All user-facing dynamic strings go through `U.esc()` before touching `innerHTML`, or through
 `textContent` (tooltips). Keep it that way.
 
+**Deliberate safety constraint:** the dashboard can only make trading *safer*, never riskier.
+It can flatten everything and halt (`#haltSlot`, `POST /api/halt`) but has no endpoint that
+changes `config.json`'s `broker.provider`, `live_trading.enabled`, or the live-account
+confirmation latch (`broker/live.py`) — those stay config-file/`.env`-only, edited by hand, on
+purpose. Don't add a broker-switching control here without discussing it first.
+
 ## Color tokens
 
 Defined once as CSS custom properties on `:root`, used everywhere via `var(--name)`. Never hardcode a hex
@@ -101,8 +107,15 @@ Three self-hosted faces, each with one job (fallbacks: system-ui / ui-monospace)
 ## Components (reuse these, don't reinvent)
 
 - **`.pill`** — status pill (topbar session, hero state). Variants: `-live` (green, pulsing dot),
-  `-halt`, `-warn`, `-idle`, `-accent`.
-- **`.banner`** — full-width callout under the topbar: `-halt`, `-asleep`, `-replay`, `-holiday`.
+  `-halt`, `-warn`, `-idle`, `-accent`. The hero's account-environment tag (`#heroTag`) reuses
+  `-halt` for LIVE (real money), `-warn` for a live-broker demo account, `-idle` for paper — no
+  new pill variant needed for this.
+- **`.banner`** — full-width callout under the topbar: `-halt`, `-asleep`, `-replay`, `-holiday`,
+  `-live` (persistent "real money is at risk" banner whenever a connected broker's account is
+  live — same `--down`/`--down-ink` family as `-halt`, just never auto-dismissed), `-warn`
+  (amber, reused for: broker disconnected, price feed running on a fallback source, a live
+  order refused, an unmanaged broker-side position found during reconciliation — see
+  `broker/live.py`'s `status_payload()`).
 - **Hero** — `.hero-figure` (62px Space Grotesk, small `$`/cents), `.delta-chip` row, sparkline,
   status strip; **`.streak`** ring: SVG arc (fraction = |streak|/10), `up/down/flat` color states,
   breathing halo.
@@ -122,8 +135,10 @@ Three self-hosted faces, each with one job (fallbacks: system-ui / ui-monospace)
   left border + tag tint. The feed renders at most 18 items (`FEED_MAX` in components.js).
 - **`.sugg`** — agent suggestion card (blue border = awaiting decision) with `.btn-approve` /
   `.btn-reject` pair.
-- **`.btn`** — base button; variants `-primary` (accent gradient), `-approve`, `-reject`, `-wake`.
-  Hover lifts 1px; that's the only translate in the system.
+- **`.btn`** — base button; variants `-primary` (accent gradient), `-approve`, `-reject`, `-wake`,
+  `-danger` (`--down`/`--down-ink`, bold weight — the dashboard's one destructive/emergency
+  action; today that's only the kill switch, `#haltSlot`'s "Flatten & halt" / "Clear halt"
+  button next to `#wakeSlot`). Hover lifts 1px; that's the only translate in the system.
 - **`.chip`** — selectable pill (Backtest Lab assets); `.sel` = accent tint.
 - **`.meter` / `.prog`** — 5–6px rounded progress tracks; meter fill accent (refinement budget), prog fill
   gold (backtest).

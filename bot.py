@@ -352,12 +352,16 @@ class Engine:
 
 # ---------------------------------------------------------------------------
 def export(cfg, broker, status, snapshots, newsdesk, now_utc, replay=False, agent=None,
-           holiday_until=None, candles=None):
+           holiday_until=None, candles=None, data_source=None):
     tag = "REPLAY — " if replay else ""
+    broker_meta = broker.status_payload() if hasattr(broker, "status_payload") else None
+    if broker_meta is not None and data_source is not None:
+        broker_meta = {**broker_meta, "data_source": data_source}
     try:
         journal.export_dashboard(cfg, broker.state, tag + status, snapshots,
                                  newsdesk, now_utc, agent=agent,
-                                 holiday_until=holiday_until, candles=candles)
+                                 holiday_until=holiday_until, candles=candles,
+                                 broker_meta=broker_meta, halt_flag=halt_requested())
     except Exception as e:
         log.warning("dashboard export failed: %s", e)
 
@@ -524,7 +528,7 @@ def run_live(session_name):
                 stale_strikes = 0
             status = engine.step(utcnow(), bars_by_asset)
             export(cfg, broker, status, engine.snapshots(), newsdesk, utcnow(),
-                   agent=agent, candles=engine.candles())
+                   agent=agent, candles=engine.candles(), data_source=engine.data_source)
             errors = 0
         except Exception:
             errors += 1
