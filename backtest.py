@@ -106,7 +106,13 @@ def apply_set_override(cfg, spec):
     if lim is None:
         raise ValueError(f"--set refused: {param!r} is not in tuning.whitelist")
     if "bool" in lim:
-        value = raw.strip().lower() in ("1", "true", "yes")
+        raw_bool = raw.strip().lower()
+        if raw_bool in ("1", "true", "yes", "on"):
+            value = True
+        elif raw_bool in ("0", "false", "no", "off"):
+            value = False
+        else:
+            raise ValueError(f"--set refused: {param} expects a boolean, got {raw!r}")
     else:
         try:
             value = int(raw)
@@ -220,8 +226,10 @@ def run(args):
         cfg["sessions"][s]["assets"] = asset_keys
 
     sandbox()
+    applied_override = {}
     if args.set_override:
-        apply_set_override(cfg, args.set_override)
+        param, value = apply_set_override(cfg, args.set_override)
+        applied_override[param] = value
     status(1, "fetching price history...")
     all_bars = {}
     for i, k in enumerate(asset_keys):
@@ -278,8 +286,13 @@ def run(args):
         "id": bt_id,
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "params": {"assets": asset_keys, "session": args.session, "days": days,
-                   "strategy": cfg["strategy"], "overrides": agent_mod._load(
-                       BASE / "config_overrides.json", {})},
+                   "strategy": cfg["strategy"],
+                   # production auto-tuning overrides active when this ran, plus this run's
+                   # own --set override (if any) layered on top -- otherwise a --set A/B run
+                   # would document only the real config_overrides.json and silently omit
+                   # the one thing that actually made it different from the baseline run.
+                   "overrides": {**agent_mod._load(BASE / "config_overrides.json", {}),
+                                **applied_override}},
         "starting_balance": starting,
         "final_balance": broker.state["balance"],
         "stats": stats,

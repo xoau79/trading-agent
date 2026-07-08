@@ -34,14 +34,18 @@ def _cfg_with_tuning(**overrides):
     return cfg
 
 
-def _agent(tmp_path, cfg):
-    """Redirect agent.py's module-level file paths into tmp_path, the same monkeypatching
-    pattern bot.py's run_replay() uses for journal.py/broker.paper -- see bot.py's
-    run_replay() docstring/body."""
-    agent_mod.FEED_FILE = tmp_path / "agent_feed.json"
-    agent_mod.LEARNING_FILE = tmp_path / "learning.json"
-    agent_mod.SUGGESTIONS_FILE = tmp_path / "suggestions.json"
-    agent_mod.OVERRIDES_FILE = tmp_path / "config_overrides.json"
+def _agent(tmp_path, cfg, monkeypatch):
+    """Redirect agent.py's module-level file paths into tmp_path (the same pattern bot.py's
+    run_replay() uses for journal.py/broker.paper -- see its docstring/body), but via
+    monkeypatch so each test's redirection is reverted afterward rather than leaking into
+    whichever test runs next. Also clears DISCORD_WEBHOOK_URL: several of these paths call
+    agent.say(..., discord=True), and a real webhook configured in a dev's own .env would
+    otherwise make this network-free suite post live test messages to a real Discord server."""
+    monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+    monkeypatch.setattr(agent_mod, "FEED_FILE", tmp_path / "agent_feed.json")
+    monkeypatch.setattr(agent_mod, "LEARNING_FILE", tmp_path / "learning.json")
+    monkeypatch.setattr(agent_mod, "SUGGESTIONS_FILE", tmp_path / "suggestions.json")
+    monkeypatch.setattr(agent_mod, "OVERRIDES_FILE", tmp_path / "config_overrides.json")
     return agent_mod.TradingAgent(cfg)
 
 
@@ -58,9 +62,9 @@ def _losing_range_bucket(trades=12, avg_r=-0.4):
 
 
 # --------------------------------------------------------------------- auto-apply
-def test_review_and_refine_auto_applies_a_bounded_override_when_evidence_and_gates_pass(tmp_path):
+def test_review_and_refine_auto_applies_a_bounded_override_when_evidence_and_gates_pass(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets=_losing_range_bucket(), trades_seen=25)
 
     agent.review_and_refine(DAY_KEY)
@@ -77,9 +81,9 @@ def test_review_and_refine_auto_applies_a_bounded_override_when_evidence_and_gat
     assert any(f["kind"] == "adjustment" for f in agent.feed)
 
 
-def test_review_and_refine_does_nothing_without_a_losing_bucket(tmp_path):
+def test_review_and_refine_does_nothing_without_a_losing_bucket(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets={"range:<0.75": {"trades": 12, "wins": 8, "sum_r": 6.0}},
                     trades_seen=25)  # a WINNING bucket -- no candidate
 
@@ -90,9 +94,9 @@ def test_review_and_refine_does_nothing_without_a_losing_bucket(tmp_path):
 
 
 # --------------------------------------------------------------------- evidence gates
-def test_review_and_refine_blocks_on_too_few_trades_since_last_change(tmp_path):
+def test_review_and_refine_blocks_on_too_few_trades_since_last_change(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets=_losing_range_bucket(), trades_seen=15,
                     trades_at_last_change=0)  # only 15 new trades, gate wants 20
 
@@ -102,9 +106,9 @@ def test_review_and_refine_blocks_on_too_few_trades_since_last_change(tmp_path):
     assert not agent_mod.SUGGESTIONS_FILE.exists()
 
 
-def test_review_and_refine_blocks_on_too_few_days_since_last_change(tmp_path):
+def test_review_and_refine_blocks_on_too_few_days_since_last_change(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets=_losing_range_bucket(), trades_seen=30,
                     trades_at_last_change=0, last_change_day=DAY_KEY)  # gap == 0 days
 
@@ -115,9 +119,9 @@ def test_review_and_refine_blocks_on_too_few_days_since_last_change(tmp_path):
 
 
 # --------------------------------------------------------------------- suggestions once spent
-def test_review_and_refine_becomes_a_pending_suggestion_once_budget_is_spent(tmp_path):
+def test_review_and_refine_becomes_a_pending_suggestion_once_budget_is_spent(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets=_losing_range_bucket(), trades_seen=25,
                     adjustments_used=15)  # budget (15) already spent
 
@@ -130,9 +134,9 @@ def test_review_and_refine_becomes_a_pending_suggestion_once_budget_is_spent(tmp
     assert sugg[0]["param"] == "strategy.range_atr_min"
 
 
-def test_review_and_refine_does_not_duplicate_a_pending_suggestion(tmp_path):
+def test_review_and_refine_does_not_duplicate_a_pending_suggestion(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     _write_learning(tmp_path, buckets=_losing_range_bucket(), trades_seen=25,
                     adjustments_used=15)
 
@@ -144,25 +148,25 @@ def test_review_and_refine_does_not_duplicate_a_pending_suggestion(tmp_path):
 
 
 # --------------------------------------------------------------------- whitelist enforcement
-def test_apply_override_refuses_a_non_whitelisted_param(tmp_path):
+def test_apply_override_refuses_a_non_whitelisted_param(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
 
     assert agent._apply_override("risk.daily_loss_limit_pct", 10.0) is False
     assert not agent_mod.OVERRIDES_FILE.exists()
 
 
-def test_apply_override_refuses_an_out_of_bounds_value(tmp_path):
+def test_apply_override_refuses_an_out_of_bounds_value(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
 
     assert agent._apply_override("strategy.range_atr_min", 0.95) is False  # max is 0.8
     assert not agent_mod.OVERRIDES_FILE.exists()
 
 
-def test_apply_override_accepts_an_in_bounds_whitelisted_value(tmp_path):
+def test_apply_override_accepts_an_in_bounds_whitelisted_value(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
 
     assert agent._apply_override("strategy.range_atr_min", 0.35) is True
     overrides = json.loads(agent_mod.OVERRIDES_FILE.read_text(encoding="utf-8"))
@@ -170,9 +174,9 @@ def test_apply_override_accepts_an_in_bounds_whitelisted_value(tmp_path):
 
 
 # --------------------------------------------------------------------- approve/reject flow
-def test_apply_approved_suggestions_applies_an_in_bounds_approved_suggestion(tmp_path):
+def test_apply_approved_suggestions_applies_an_in_bounds_approved_suggestion(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     agent_mod.SUGGESTIONS_FILE.write_text(json.dumps([
         {"id": "sg1", "created": DAY_KEY, "status": "approved",
          "param": "strategy.range_atr_min", "from": 0.3, "to": 0.35,
@@ -189,9 +193,9 @@ def test_apply_approved_suggestions_applies_an_in_bounds_approved_suggestion(tmp
     assert any("You approved it" in f["text"] for f in agent.feed)
 
 
-def test_apply_approved_suggestions_rejects_an_out_of_bounds_approved_suggestion(tmp_path):
+def test_apply_approved_suggestions_rejects_an_out_of_bounds_approved_suggestion(tmp_path, monkeypatch):
     cfg = _cfg_with_tuning()
-    agent = _agent(tmp_path, cfg)
+    agent = _agent(tmp_path, cfg, monkeypatch)
     agent_mod.SUGGESTIONS_FILE.write_text(json.dumps([
         {"id": "sg2", "created": DAY_KEY, "status": "approved",
          "param": "strategy.range_atr_min", "from": 0.3, "to": 0.95,

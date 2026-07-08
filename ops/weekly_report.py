@@ -91,7 +91,7 @@ def build_report(base, days, now_utc=None):
     stats = journal.compute_stats(week_trades, equity_curve, starting_balance)
 
     lessons = _load(base / "journal" / "lessons.json", [])
-    week_lessons = [l for l in lessons if l.get("t", "") >= cutoff]
+    week_lessons = [item for item in lessons if item.get("t", "") >= cutoff]
 
     led = _load(base / "journal" / "learning.json", None)
     min_bucket = cfg.get("tuning", {}).get("min_bucket_trades", 10)
@@ -129,8 +129,8 @@ def build_report(base, days, now_utc=None):
     lines.append("")
     if week_lessons:
         lines.append("**Lessons this week:**")
-        for l in week_lessons[-8:]:
-            lines.append(f"- {l['text']}")
+        for lesson in week_lessons[-8:]:
+            lines.append(f"- {lesson['text']}")
     else:
         lines.append("No lessons recorded this week.")
 

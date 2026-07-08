@@ -8,28 +8,28 @@ When setting up a cTrader or MT5 demo account for the first time, or re-verifyin
 1. **Register a Spotware Open API application** at https://openapi.ctrader.com, note the Client ID/Secret, and add the exact redirect URI `http://localhost:53123/callback`.
 2. **Fill in `.env`** with `CTRADER_CLIENT_ID`/`CTRADER_CLIENT_SECRET`. Leave `CTRADER_ACCOUNT_ID` and `LIVE_TRADING_CONFIRM` empty at this stage — you haven't picked an account yet, and the live latch has no business being touched during demo setup.
 3. **Authorize and discover accounts:**
-   ```
+   ```bash
    python ops/ctrader_auth.py
    ```
    This opens a browser, catches the OAuth redirect locally, saves a refreshable token to `ctrader_tokens.json` (gitignored — never commit it), and lists every account the token can access.
 4. **Put the *demo* account's id into `.env`'s `CTRADER_ACCOUNT_ID`** — never the live one at this stage. If your account only shows up checking the live host, re-run with `--host live.ctraderapi.com --list-accounts` just to look, but still don't put a live id into `.env` yet.
 5. **Verify symbols before touching `config.json`:**
-   ```
+   ```bash
    python ops/ctrader_smoke_test.py --symbols
    ```
    Find the real gold/index symbol names in the output and fill them into `config.json`'s `assets.*.ctrader` fields — every one of them ships as `null` with a note like *"likely 'XAUUSD'; verify... do not trust this guess."* That instruction is the whole point of this step; don't skip it and type in the likely-guess anyway.
 6. **Run the full connectivity check:**
-   ```
+   ```bash
    python ops/ctrader_smoke_test.py
    ```
    All checks (account info, symbol resolution, trendbars, live spot) must PASS. If a symbol fails to resolve, the error lists near-matches — fix `config.json` and re-run rather than guessing again.
 7. **Cross-check the broker's own prices against Yahoo:**
-   ```
+   ```bash
    python ops/feed_parity.py
    ```
    for an independent second opinion on whether the symbol mapping and price scaling are actually correct, not just that the API call succeeded.
 8. **Place one real (tiny) demo order** through the full pipeline:
-   ```
+   ```bash
    python ops/live_order_test.py --provider ctrader --yes
    ```
    This refuses outright if the configured account is live. Read the printed trade dict — this is the strongest signal the whole chain (sizing → order → fill → close → journal) actually works, not just that individual API calls succeed.
@@ -39,7 +39,7 @@ When setting up a cTrader or MT5 demo account for the first time, or re-verifyin
 ## Example of a good final output
 
 The real example account-listing output `ops/ctrader_auth.py` produces (from `docs/ctrader_setup.md`):
-```
+```text
 2 account(s) available on demo.ctraderapi.com:
   ctidTraderAccountId=1234567  [demo]  broker=ICM
   ctidTraderAccountId=1234568  [LIVE — real money]  broker=ICM

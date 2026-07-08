@@ -89,10 +89,10 @@ def _session_review_summary(path):
         return None
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    summary = next((l for l in lines if l.startswith("**Trades:**")), "")
-    balance = next((l for l in lines if l.startswith("**Balance:**")), "")
-    halt = next((l for l in lines if l.startswith("⚠️")), "")
-    notes = [l for l in lines if l.startswith("- **")]
+    summary = next((line for line in lines if line.startswith("**Trades:**")), "")
+    balance = next((line for line in lines if line.startswith("**Balance:**")), "")
+    halt = next((line for line in lines if line.startswith("⚠️")), "")
+    notes = [line for line in lines if line.startswith("- **")]
     return {"summary": summary, "balance": balance, "halt": halt, "notes": notes}
 
 
@@ -107,7 +107,7 @@ def _log_noise(log_file):
     if not log_file.exists():
         return [], 0
     lines = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
-    hits = [l for l in lines if any(lvl in l for lvl in NOISE_LEVELS)]
+    hits = [line for line in lines if any(lvl in line for lvl in NOISE_LEVELS)]
     return hits, len(hits)
 
 
@@ -144,8 +144,8 @@ def build_digest(base, session, day_key, log_file):
     if noise_count:
         lines.append(f"**{noise_count} warning/error log line(s)** (never surfaced to "
                      "Discord before) — most recent:")
-        for l in noise[-5:]:
-            lines.append(f"`{l[:180]}`")
+        for noise_line in noise[-5:]:
+            lines.append(f"`{noise_line[:180]}`")
     else:
         lines.append("No warnings/errors in the session log.")
 

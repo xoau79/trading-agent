@@ -40,7 +40,10 @@ def _run_backtest(assets, session, days, set_override=None):
           "--session", session, "--days", str(days)]
     if set_override:
         cmd += ["--set", set_override]
-    proc = subprocess.run(cmd, cwd=str(BASE), capture_output=True, text=True, timeout=1800)
+    try:
+        proc = subprocess.run(cmd, cwd=str(BASE), capture_output=True, text=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        return None, "backtest timed out after 1800s"
     if proc.returncode != 0:
         return None, proc.stderr[-2000:]
     status_file = OUTDIR / "status.json"

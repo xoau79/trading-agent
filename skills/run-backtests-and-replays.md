@@ -7,17 +7,17 @@ Before merging any PR that changes trading logic (required by `CONTRIBUTING.md`)
 
 1. **Decide which tool you need.** `bot.py --backtest` replays a single session on a single date through the live engine (fast, good for "does this PR change today's trade sequence?"). `backtest.py` (or the dashboard's Backtest Lab) replays many sessions over a period with a Monte Carlo bootstrap (good for "how has this actually performed over the last month?").
 2. **For a single-date replay:**
-   ```
+   ```bash
    python bot.py --session newyork --backtest 2026-06-11
    ```
    This is fully sandboxed — it never touches `state.json`, the real `journal/`, or `config_overrides.json` (see `bot.py`'s `run_replay()`, which redirects every module-level path to a `backtest/` sandbox folder first).
 3. **For a multi-session backtest:**
-   ```
+   ```bash
    python backtest.py --assets GOLD,NQ,ES --session both --days 30
    ```
    Remember Yahoo's free tier caps 1-minute history at ~30 days back — `--days` above 29 gets silently clamped, and that's the honest limit of this tool, not a bug.
 4. **To A/B a proposed parameter change** (e.g., before approving an agent suggestion), add `--set param=value` to compare against the baseline:
-   ```
+   ```bash
    python backtest.py --assets GOLD,NQ,ES --session both --days 29 --set strategy.range_atr_min=0.35
    ```
    This only accepts params already in `config.json`'s `tuning.whitelist`, within their configured bounds — it will refuse anything else outright, on purpose. (`ops/suggestion_evidence.py` does exactly this automatically for every pending suggestion — see that skill file.)
@@ -28,7 +28,7 @@ Before merging any PR that changes trading logic (required by `CONTRIBUTING.md`)
 
 The real printed output of a `bot.py --backtest` replay (`run_replay()`'s actual print statements):
 
-```
+```text
 Replay 2026-06-11 newyork: 2 trades, P&L +212.40 USD, final balance 10212.40
   #1 GOLD LONG: 3350.20 -> 3362.80 (target) +210.40 USD (+2.00R)
   #2 NQ SHORT: 19800.00 -> 19850.00 (stop) -100.00 USD (-1.00R)
@@ -36,7 +36,7 @@ Replay 2026-06-11 newyork: 2 trades, P&L +212.40 USD, final balance 10212.40
 ```
 
 And `backtest.py`'s own summary line, printed at the end of a multi-session run:
-```
+```text
 bt_20260709_143022: 47 trades, P&L +893.20
 ```
 Both are good outputs because every trade is individually accounted for with its exact entry/exit/reason/R-multiple — never just a rolled-up total. If you can't reconstruct the whole session from the printed trades, something in the run didn't complete properly.

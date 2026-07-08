@@ -19,7 +19,7 @@ Plain language, why over what, and **honesty about limits is a house style, not 
 > "likely 'XAUUSD'; verify with `python ops/ctrader_smoke_test.py --symbols` against your own account, do not trust this guess"
 
 Commit messages: what changed, why, and what proves it still works — never just "fix bug." Real example (`ec2b664`):
-```
+```text
 Add cTrader/live-trading config groundwork; extract TradeLedger from PaperBroker
 
 - broker/ledger.py: new TradeLedger holding the universal risk rules and

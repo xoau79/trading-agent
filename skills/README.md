@@ -1,6 +1,6 @@
 # Skills
 
-One markdown file per weekly repeated task around this repo. Each file has the same four
+One markdown file per recurring operational task around this repo. Each file has the same four
 sections: when to use it, the exact steps in order, a real example of good output, and the
 mistakes to avoid (each traceable to an actual correction in this repo's history). Written so
 a model with no prior context on this project can execute the task cold.

@@ -74,8 +74,9 @@ def check_asset(cfg, broker, asset, now_utc):
         flag = " ⚠️ large delta — check the symbol mapping and price scaling"
     if b["stale"]:
         flag += " ⚠️ broker feed is stale"
+    delta_str = f"{delta_pct:.2f}%" if delta_pct is not None else "—"
     return (f"- **{asset}** (`{symbol}`): broker {b['close']:.4f} vs Yahoo {y['close']:.4f} "
-           f"({delta_pct:.2f}% delta, {b['count']}/{y['count']} bars){flag}")
+           f"({delta_str} delta, {b['count']}/{y['count']} bars){flag}")
 
 
 def build_report(cfg, now_utc=None):

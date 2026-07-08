@@ -130,25 +130,16 @@ if (-not $Only -or $Only -eq "SmokeTest") {
         -StartTime "10:00" -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 }
 if (-not $Only -or $Only -eq "WeeklyReport") {
-    $action = New-ScheduledTaskAction -Execute $PythonW `
-        -Argument "`"$RepoRoot\ops\weekly_report.py`"" -WorkingDirectory $RepoRoot
-    $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At "18:00"
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) `
-        -MultipleInstances IgnoreNew -DontStopOnIdleEnd
-    Register-ScheduledTask -TaskName "TradingAgent-WeeklyReport" -Action $action -Trigger $trigger `
-        -Settings $settings -Force | Out-Null
-    Write-Host "Registered TradingAgent-WeeklyReport"
+    Register-BotTask -Name "TradingAgent-WeeklyReport" -ScriptArgs "ops\weekly_report.py" `
+        -StartTime "18:00" -DaysOfWeek Sunday -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 }
 if (-not $Only -or $Only -eq "SuggestionEvidence") {
-    # 18:30, after WeeklyReport -- runs up to two full sandboxed backtests per pending
-    # suggestion (current config vs proposed), so it gets a generous time limit; it's a
-    # no-op (prints "nothing to evidence" and exits) when there's nothing pending.
-    $action = New-ScheduledTaskAction -Execute $PythonW `
-        -Argument "`"$RepoRoot\ops\suggestion_evidence.py`"" -WorkingDirectory $RepoRoot
-    $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At "18:30"
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
-        -MultipleInstances IgnoreNew -DontStopOnIdleEnd
-    Register-ScheduledTask -TaskName "TradingAgent-SuggestionEvidence" -Action $action -Trigger $trigger `
-        -Settings $settings -Force | Out-Null
-    Write-Host "Registered TradingAgent-SuggestionEvidence"
+    # 18:30, after WeeklyReport. suggestion_evidence.py runs two sandboxed backtests (30 min
+    # subprocess timeout each -- see ops/suggestion_evidence.py's _run_backtest()) per pending
+    # suggestion, so a single suggestion alone can take up to ~1h; three hours gives headroom
+    # for more than one pending suggestion in the same run without Task Scheduler killing it
+    # mid-way and silently dropping evidence for whatever's left. A no-op (prints "nothing to
+    # evidence" and exits immediately) when nothing is pending.
+    Register-BotTask -Name "TradingAgent-SuggestionEvidence" -ScriptArgs "ops\suggestion_evidence.py" `
+        -StartTime "18:30" -DaysOfWeek Sunday -ExecutionTimeLimit (New-TimeSpan -Hours 3)
 }
