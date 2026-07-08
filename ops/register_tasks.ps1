@@ -15,13 +15,15 @@
       - TradingAgent-DigestNY    weekdays (next morning), Discord summary after New York closes
       - TradingAgent-SmokeTest   weekdays, external feed health check -> Discord on failure
       - TradingAgent-WeeklyReport  Sunday evening, Discord stats/tuning-gate/suggestion report
+      - TradingAgent-SuggestionEvidence  Sunday evening (after WeeklyReport), backtests each
+                                          pending suggestion current-vs-proposed -> Discord
 
     Safe to re-run: every task is registered with -Force, so re-running this script just
     re-applies the same definition rather than erroring on "already exists".
 
 .PARAMETER Only
     Optional: register a single task by short name (Asia, NY, Dashboard, Watchdog, DigestAsia,
-    DigestNY, SmokeTest, WeeklyReport) instead of all of them.
+    DigestNY, SmokeTest, WeeklyReport, SuggestionEvidence) instead of all of them.
 
 .EXAMPLE
     # Add just the dashboard task to an existing setup, without touching the rest:
@@ -29,7 +31,7 @@
 #>
 param(
     [ValidateSet("Asia", "NY", "Dashboard", "Watchdog", "DigestAsia", "DigestNY",
-                 "SmokeTest", "WeeklyReport")]
+                 "SmokeTest", "WeeklyReport", "SuggestionEvidence")]
     [string]$Only
 )
 
@@ -136,4 +138,17 @@ if (-not $Only -or $Only -eq "WeeklyReport") {
     Register-ScheduledTask -TaskName "TradingAgent-WeeklyReport" -Action $action -Trigger $trigger `
         -Settings $settings -Force | Out-Null
     Write-Host "Registered TradingAgent-WeeklyReport"
+}
+if (-not $Only -or $Only -eq "SuggestionEvidence") {
+    # 18:30, after WeeklyReport -- runs up to two full sandboxed backtests per pending
+    # suggestion (current config vs proposed), so it gets a generous time limit; it's a
+    # no-op (prints "nothing to evidence" and exits) when there's nothing pending.
+    $action = New-ScheduledTaskAction -Execute $PythonW `
+        -Argument "`"$RepoRoot\ops\suggestion_evidence.py`"" -WorkingDirectory $RepoRoot
+    $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At "18:30"
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
+        -MultipleInstances IgnoreNew -DontStopOnIdleEnd
+    Register-ScheduledTask -TaskName "TradingAgent-SuggestionEvidence" -Action $action -Trigger $trigger `
+        -Settings $settings -Force | Out-Null
+    Write-Host "Registered TradingAgent-SuggestionEvidence"
 }

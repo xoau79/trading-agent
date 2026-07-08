@@ -87,6 +87,43 @@ def sandbox():
     agent_mod.OVERRIDES_FILE = WORK / "overrides.json"
 
 
+def apply_set_override(cfg, spec):
+    """`--set param=value`: a one-off, this-run-only override for A/B-ing a proposed change
+    (ops/suggestion_evidence.py's use case -- current config vs a pending suggestion).
+
+    Validated through agent.TradingAgent._apply_override() -- the exact same whitelist/bounds
+    check agent.py's own auto-tuner enforces -- rather than a second copy of that logic. Must
+    be called after sandbox() (so the validation write lands in the sandbox's own throwaway
+    overrides.json, never the real config_overrides.json) and applies the validated value
+    directly into the in-memory cfg used for this one run only.
+    """
+    if "=" not in spec:
+        raise ValueError(f"--set must be param=value, got: {spec!r}")
+    param, raw = spec.split("=", 1)
+    param = param.strip()
+    wl = cfg.get("tuning", {}).get("whitelist", {})
+    lim = wl.get(param)
+    if lim is None:
+        raise ValueError(f"--set refused: {param!r} is not in tuning.whitelist")
+    if "bool" in lim:
+        value = raw.strip().lower() in ("1", "true", "yes")
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = float(raw)
+    agent = agent_mod.TradingAgent(cfg, replay=True)
+    if not agent._apply_override(param, value):
+        raise ValueError(f"--set refused: {param}={value} is out of bounds ({lim})")
+    node = cfg
+    *parts, leaf = param.split(".")
+    for p in parts:
+        node = node[p]
+    node[leaf] = value
+    log.info("backtest override applied for this run only: %s = %s", param, value)
+    return param, value
+
+
 def build_windows(cfg, sessions, days):
     """Chronological (open_utc, close_utc, session_name) for the period."""
     out, now = [], datetime.now(timezone.utc)
@@ -151,6 +188,9 @@ def main():
     ap.add_argument("--assets", required=True, help="comma list of backtest_assets keys")
     ap.add_argument("--session", default="both", choices=["asia", "newyork", "both"])
     ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--set", dest="set_override", metavar="PARAM=VALUE",
+                    help="apply one whitelisted tuning override for this run only "
+                    "(see config.json's tuning.whitelist) -- for A/B-ing a proposed change")
     args = ap.parse_args()
 
     try:
@@ -180,6 +220,8 @@ def run(args):
         cfg["sessions"][s]["assets"] = asset_keys
 
     sandbox()
+    if args.set_override:
+        apply_set_override(cfg, args.set_override)
     status(1, "fetching price history...")
     all_bars = {}
     for i, k in enumerate(asset_keys):
