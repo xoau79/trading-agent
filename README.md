@@ -128,8 +128,24 @@ python bot.py --session newyork --backtest 2026-06-10
 Disable-ScheduledTask -TaskName "TradingAgent-Asia","TradingAgent-NY"
 Enable-ScheduledTask  -TaskName "TradingAgent-Asia","TradingAgent-NY"
 
-# Check every external feed is healthy
+# Check every external feed is healthy (add --discord to alert on failure)
 python ops/smoke_test.py
+
+# Post a Discord digest for a session that already ran (day_key/log file are
+# worked out automatically; only pass them to look at a specific past day)
+python ops/session_digest.py --session newyork
+
+# Post the weekly Discord report (stats, lessons, learning buckets, and a
+# countdown to the agent's next auto-tuning refinement)
+python ops/weekly_report.py
+
+# Back any pending agent suggestion with an A/B backtest (current config vs
+# proposed) posted to Discord
+python ops/suggestion_evidence.py
+
+# Compare a connected demo broker's prices/bars against Yahoo (symbol-mapping
+# and price-scaling sanity check -- see docs/ctrader_setup.md)
+python ops/feed_parity.py
 ```
 
 ## Setup
@@ -155,4 +171,19 @@ To reset the account back to $10,000: delete `state.json`, `journal\trades.json`
 trading's `state.json`).
 
 Scheduled tasks: `TradingAgent-Asia` (10:30 AM), `TradingAgent-NY` (11:00 PM),
-`TradingAgent-Dashboard` (at logon).
+`TradingAgent-Dashboard` (at logon), `TradingAgent-Watchdog` (every 15 min, Discord alert if a
+session goes dead), `TradingAgent-DigestAsia`/`TradingAgent-DigestNY` (Discord summary after
+each session closes), `TradingAgent-SmokeTest` (weekday feed health check), and
+`TradingAgent-WeeklyReport`/`TradingAgent-SuggestionEvidence` (Sunday evening). All registered
+via `ops/register_tasks.ps1` — see its header comment for the full list and `-Only` to
+register just one.
+
+## Discord-first monitoring 📱
+
+The dashboard only lives at `localhost:8765` — reachable at home, not during school. Every
+script above that matters away from the dashboard posts to the same `DISCORD_WEBHOOK_URL`
+webhook the agent already uses, so the full picture (a dead bot, a session's trades and
+warnings, the week's stats, feed health) reaches Discord without needing the dashboard open:
+see `ops/watchdog.py`, `ops/session_digest.py`, `ops/weekly_report.py`,
+`ops/suggestion_evidence.py`, and `ops/smoke_test.py --discord`. `ops/notify.py` is the shared
+webhook helper; every script also takes `--dry-run` to print instead of posting.
