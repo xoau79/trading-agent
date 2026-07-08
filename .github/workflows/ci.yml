@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        # tests/ is network-free by design (README.md) -- pytest.ini scopes bare `pytest`
+        # to it so ops/*_test.py (manual, network-hitting scripts) are never collected.
+        run: pytest
+
+      - name: Flag risk-surface changes
+        # Advisory only -- never fails the job. CONTRIBUTING.md already says changes to
+        # position sizing, stop/target logic, daily loss limits, or trade caps "get the
+        # closest read" before merge; this just makes sure that's visible on the PR
+        # itself instead of relying on the reviewer to notice from the diff alone.
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          # Two-dot (tree) diff, not three-dot (merge-base) -- actions/checkout's default
+          # shallow (depth=1) clone has no shared history to compute a merge-base against a
+          # separately shallow-fetched base ref, but a direct tree comparison needs no
+          # ancestry and works fine for "which files differ" purposes.
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" HEAD)
+          RISK=$(echo "$CHANGED" | grep -E '^config\.json$|^broker/ledger\.py$|^broker/live|^strategies/[^/]+/strategy\.py$' || true)
+          if [ -n "$RISK" ]; then
+            {
+              echo "## ⚠️ Risk-surface files changed"
+              echo "Per CONTRIBUTING.md, changes touching position sizing, stop/target logic,"
+              echo "daily loss limits, or trade caps get the closest review before merge:"
+              echo ""
+              echo "$RISK" | sed 's/^/- `/; s/$/`/'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No risk-surface files changed in this PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
