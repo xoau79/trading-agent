@@ -94,7 +94,8 @@ original "paper account" look unchanged.
 
 ## Ops (`ops/`)
 
-- **`ops/smoke_test.py`** — checks every external price/news/rating feed is reachable.
+- **`ops/smoke_test.py`** — checks every external price/news/rating feed is reachable; `--discord`
+  posts a summary to Discord on any FAIL instead of only printing to a console nobody's watching.
 - **`ops/ctrader_auth.py`** — one-time OAuth setup for the cTrader adapter (authorize in a browser, saves a
   refreshable token, lists the accounts available to pick `CTRADER_ACCOUNT_ID` from).
 - **`ops/ctrader_smoke_test.py`** — read-only cTrader connectivity check (account info, symbol resolution,
@@ -103,7 +104,39 @@ original "paper account" look unchanged.
 - **`ops/live_order_test.py`** — shared, explicitly opt-in (`--yes`): places one minimum-size order through
   the full `LiveBroker` path on a demo account (refuses live accounts outright), then closes it — the
   "did the whole pipeline actually work" check the read-only smoke tests can't cover.
+- **`ops/feed_parity.py`** — compares a connected demo broker's bars/prices against Yahoo per
+  asset (delta %, staleness) — the automated version of the symbol-mapping/price-scaling
+  eyeball check `docs/ctrader_setup.md`'s "Known limitations" section asks for. No-ops cleanly
+  while `broker.provider` is `paper`.
 - **`ops/register_tasks.ps1`** — versioned Task Scheduler setup, so the automation is reproducible from the
   repo instead of living only in one machine's scheduler configuration.
 
-See `docs/ctrader_setup.md` for how these fit together into a go-live checklist.
+### Discord-first ops (`ops/notify.py` + friends)
+
+The dashboard (`dashboard_server.py`) only binds `127.0.0.1` — reachable at home, not during
+school term. These scripts close that gap by posting to the same `DISCORD_WEBHOOK_URL`
+webhook `agent.py` already uses (`ops/notify.py`'s `discord_post()`, same failure posture as
+`agent.py`'s own `_discord()`: never raises, truncated, short timeout). All read-only against
+the trading system and all support `--dry-run` (print instead of posting).
+
+- **`ops/watchdog.py`** — the replacement for the in-process dead-man's-switch removed in PR #6:
+  polled every 15 min (`TradingAgent-Watchdog`), posts to Discord the moment a *live* session's
+  `dashboard/data.js` goes stale or the bot's own status reports an emergency/aborted stop.
+  Rate-limited to one alert per session.
+- **`ops/session_digest.py`** — a full post-session Discord summary (P&L, each trade's exit
+  reason, per-asset filter notes from `journal/<day>/session-review-*.md`, and any
+  WARNING/ERROR log lines the agent's own INFO-level narration never surfaces). Works out the
+  session's own `day_key` and log file itself — not naively "today", since New York's session
+  can close on the Sydney calendar day *after* the one it opened on (`TradingAgent-DigestAsia`/
+  `TradingAgent-DigestNY`).
+- **`ops/weekly_report.py`** — Sunday-evening stats (reusing `journal.compute_stats()`),
+  lessons, learning buckets, and a countdown against `tuning`'s evidence gates (trades/days
+  since the last change, auto-budget used) — answering "when will the system next change
+  itself." Also previews the current top candidate via `agent.py`'s own (read-only)
+  `TradingAgent._find_candidate()`, rather than a second copy of that threshold logic.
+- **`ops/suggestion_evidence.py`** — for each pending suggestion in `journal/suggestions.json`,
+  runs two sandboxed `backtest.py` runs (current config vs `backtest.py --set param=value`,
+  which is refused outright for anything outside `tuning.whitelist`'s bounds) and posts the
+  metric deltas, so an approve/reject decision has comparative evidence behind it.
+
+See `docs/ctrader_setup.md` for how the broker-setup ops scripts fit together into a go-live checklist.

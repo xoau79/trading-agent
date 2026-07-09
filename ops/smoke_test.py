@@ -1,12 +1,18 @@
 """Smoke test: verify every external feed the trading bot depends on.
 
-Run:  python smoke_test.py
+Run:  python ops/smoke_test.py
+Run:  python ops/smoke_test.py --discord   # also post a Discord alert on any FAIL
 Each section prints PASS or FAIL with details. The bot is only viable if
 the price feed passes; the others have graceful fallbacks.
 """
+import argparse
 import json
 import sys
 import urllib.request
+from pathlib import Path
+
+BASE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE))  # so `python ops/smoke_test.py` can import ops.notify
 
 RESULTS = []
 
@@ -78,11 +84,30 @@ def test_tradingview():
     return "; ".join(out)
 
 
-check("Yahoo 1-min bars", test_yahoo)
-check("ForexFactory calendar", test_forexfactory)
-check("CNBC RSS headlines", test_rss)
-check("TradingView ratings", test_tradingview)
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--discord", action="store_true",
+                    help="post a summary to Discord if any feed FAILs")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="with --discord, print instead of posting (for testing)")
+    args = ap.parse_args()
 
-failed = [r for r in RESULTS if not r[1]]
-print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} feeds OK")
-sys.exit(1 if failed else 0)
+    check("Yahoo 1-min bars", test_yahoo)
+    check("ForexFactory calendar", test_forexfactory)
+    check("CNBC RSS headlines", test_rss)
+    check("TradingView ratings", test_tradingview)
+
+    failed = [r for r in RESULTS if not r[1]]
+    print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} feeds OK")
+
+    if failed and args.discord:
+        from ops.notify import discord_post
+        lines = [f"⚠️ **Smoke test**: {len(failed)}/{len(RESULTS)} feed(s) failed:"]
+        lines += [f"- {name}: {detail}" for name, ok, detail in failed]
+        discord_post("\n".join(lines), dry_run=args.dry_run)
+
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

@@ -31,6 +31,11 @@ DATA_JS = DASHBOARD / "data.js"
 HALT_FLAG = BASE / "halt.flag"  # bot.py's live loop watches this -- see bot.py's halt_requested()
 BT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
+# logs/ is gitignored runtime data, so a fresh checkout (a new contributor, CI) never has it --
+# create it before the FileHandler below touches it, not just in main() (this module's
+# logging is configured at import time, so any importer -- including the test suite -- needs
+# this to have already happened).
+(BASE / "logs").mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s",
     handlers=[logging.FileHandler(BASE / "logs" / "dashboard_server.log", encoding="utf-8")])
@@ -265,7 +270,6 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main():
-    (BASE / "logs").mkdir(exist_ok=True)
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
     except OSError as e:
